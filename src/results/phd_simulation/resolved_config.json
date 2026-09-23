@@ -1,0 +1,36 @@
+{
+  "seed": 42,
+  "seeds": [
+    11,
+    22,
+    33,
+    44,
+    55
+  ],
+  "n_cases": 180,
+  "episode_length": 40,
+  "ood_fraction": 0.15,
+  "train_case_fraction": 0.6,
+  "calibration_case_fraction": 0.2,
+  "cv_folds": 5,
+  "review_budget": 0.25,
+  "bootstrap_samples": 2000,
+  "sensor_noise": 0.018,
+  "missing_modality_rate": 0.0,
+  "concept_drift": 0.0,
+  "maintenance_delay": 0,
+  "resource_availability_floor": 0.3,
+  "xgb_estimators": 80,
+  "ppo_timesteps": 8000,
+  "ppo_eval_episodes": 20,
+  "run_ppo": true,
+  "output_dir": "results/phd_simulation",
+  "reward_weights": {
+    "risk": 3.0,
+    "downtime": 1.0,
+    "cost": 0.8,
+    "unnecessary_maintenance": 1.0,
+    "human_review": 0.15,
+    "failure": 45.0
+  }
+}

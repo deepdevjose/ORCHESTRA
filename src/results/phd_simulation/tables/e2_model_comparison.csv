@@ -1,0 +1,6 @@
+model,available,implementation,cv_mae_mean,cv_rmse_mean,cv_r2_mean,note
+xgboost,True,xgboost,4.346933115884086,5.7336678378187,0.8399833800215266,
+random_forest,True,random_forest,4.146079517479015,5.544276717744063,0.8502965489259212,
+lightgbm,False,not_installed,,,,lightgbm is not installed
+mlp,True,mlp,6.268053034236944,8.068322629962005,0.6855270944422696,
+hist_gradient_boosting,True,hist_gradient_boosting,4.035615104409182,5.3964058936075245,0.8580186520175064,

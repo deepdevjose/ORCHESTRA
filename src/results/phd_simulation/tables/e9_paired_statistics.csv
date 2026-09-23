@@ -1,0 +1,4 @@
+metric,treatment,control,n,difference_mean,p_value,test,bootstrap_n,bootstrap_difference_mean,bootstrap_ci95_low,bootstrap_ci95_high
+reward,full_orchestra,predicted_urgency_only,5,499.3303831334318,0.0625,wilcoxon_signed_rank,5,499.3303831334318,439.7751610266815,550.3130158353229
+failures,full_orchestra,predicted_urgency_only,5,-11.17,0.0625,wilcoxon_signed_rank,5,-11.17,-12.290000000000001,-9.917000000000014
+downtime,full_orchestra,predicted_urgency_only,5,13.354982392052108,0.0625,wilcoxon_signed_rank,5,13.354982392052108,11.974593438164884,14.77390213379771

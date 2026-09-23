@@ -12,6 +12,7 @@ PubSubClient mqttClient(wifiClient);
 unsigned long lastTelemetryAt = 0;
 unsigned long sequenceNumber = 0;
 bool commandSubscriptionReady = false;
+String operationalState = "production";
 
 void connectToWifi() {
   if (WiFi.status() == WL_CONNECTED) return;
@@ -122,7 +123,16 @@ String telemetryJson() {
   payload += ",\"station_id\":\"" + String(MQTT_STATION_ID) + "\"";
   payload += ",\"timestamp\":\"" + isoTimestamp() + "\"";
   payload += ",\"sequence\":" + String(sequenceNumber);
+  payload += ",\"payload_version\":\"orchestra.telemetry.v1\"";
+  payload += ",\"machine_name\":\"" + String(MACHINE_NAME) + "\"";
+  payload += ",\"location\":\"" + String(MACHINE_LOCATION) + "\"";
+  payload += ",\"line\":\"" + String(MACHINE_LINE) + "\"";
+  payload += ",\"asset\":\"" + String(MACHINE_ASSET) + "\"";
+  payload += ",\"source\":\"" + String(USE_SIMULATED_SENSORS ? "esp32_simulated" : "esp32_live_sensor") + "\"";
   payload += ",\"scenario\":\"" + String(USE_SIMULATED_SENSORS ? "simulated" : "live_sensor") + "\"";
+  payload += ",\"operational_state\":\"" + operationalState + "\"";
+  payload += ",\"wifi_rssi_dbm\":" + String(WiFi.RSSI());
+  payload += ",\"signal_quality\":" + String(USE_SIMULATED_SENSORS ? 0.98f : 0.75f, 2);
   payload += ",\"laser_power_w\":" + String(laserPower, 2);
   payload += ",\"welding_speed_mm_s\":" + String(weldingSpeed, 3);
   payload += ",\"focal_position_error_mm\":" + String(focalError, 4);
@@ -144,14 +154,43 @@ String telemetryJson() {
   return payload;
 }
 
+String jsonStringField(const String &json, const char *field) {
+  const String key = String("\"") + field + "\"";
+  const int keyIndex = json.indexOf(key);
+  if (keyIndex < 0) return String();
+  const int colonIndex = json.indexOf(':', keyIndex + key.length());
+  if (colonIndex < 0) return String();
+  const int firstQuote = json.indexOf('"', colonIndex + 1);
+  if (firstQuote < 0) return String();
+  const int secondQuote = json.indexOf('"', firstQuote + 1);
+  if (secondQuote < 0) return String();
+  return json.substring(firstQuote + 1, secondQuote);
+}
+
+bool applyCommand(const String &action) {
+  if (action == "inspect") operationalState = "inspection";
+  else if (action == "hold_production" || action == "schedule_major_maintenance") operationalState = "maintenance_hold";
+  else if (action == "schedule_minor_maintenance") operationalState = "maintenance_planned";
+  else if (action == "urgent_intervention") operationalState = "stopped";
+  else if (action == "resume_production") operationalState = "production";
+  else if (action == "acknowledge") return true;
+  else return false;
+  return true;
+}
+
 void mqttMessageReceived(char *topic, byte *message, unsigned int length) {
   String command;
   command.reserve(length + 1);
   for (unsigned int index = 0; index < length; index++) command += static_cast<char>(message[index]);
 
-  Serial.printf("MQTT command on %s: %s\n", topic, command.c_str());
+  const String action = jsonStringField(command, "action");
+  const bool accepted = applyCommand(action);
+  Serial.printf("MQTT command on %s: %s (%s)\n", topic, action.c_str(), accepted ? "accepted" : "rejected");
   String acknowledgement = "{\"device_id\":\"" + String(MQTT_DEVICE_ID) +
-                           "\",\"status\":\"command_received\",\"command\":" + command + "}";
+                           "\",\"status\":\"" + String(accepted ? "accepted" : "rejected") +
+                           "\",\"action\":\"" + action +
+                           "\",\"operational_state\":\"" + operationalState +
+                           "\",\"payload_version\":\"orchestra.command_ack.v1\"}";
   mqttClient.publish(MQTT_STATUS_TOPIC, acknowledgement.c_str(), false);
 }
 
@@ -210,4 +249,3 @@ void loop() {
   }
   delay(10);
 }
-

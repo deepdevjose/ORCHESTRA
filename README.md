@@ -105,6 +105,24 @@ This code supports the honest claim:
 
 It does not claim full industrial validation unless real maintenance logs, real downtime records, and live production data are added.
 
+## PhD-level simulation evidence package
+
+The reproducible, simulation-only evidence package for the four-week validation plan is in `src/phd_simulation/`. It extends the Week 1 smoke foundation with latent process trajectories, case-level splits, grouped five-fold prediction validation, uncertainty calibration, matched-budget review routing, PPO-compatible scheduling, multi-seed confidence intervals, ablations, sensitivity analysis, counterfactual checks, and hash-chained audit traces.
+
+Run a small smoke test:
+
+```bash
+python src/phd_simulation/run.py --quick --skip-ppo --output-dir /tmp/orchestra_phd_smoke
+```
+
+Run the configured five-seed experiment:
+
+```bash
+python src/phd_simulation/run.py
+```
+
+The package records its evidence manifest and explicitly preserves the simulation-only limitation: it is not real hardware validation, a live operator study, safety certification, or proof of industrial deployment.
+
 
 ## Test XGBoost And PPO
 

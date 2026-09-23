@@ -1,0 +1,32 @@
+{
+  "calibration": {
+    "rows": 1240,
+    "mae": 4.504731492746723,
+    "conformal_radius_90": 9.554113371831283,
+    "interval_coverage": 0.9,
+    "ece": 0.49436237928555055,
+    "low_uncertainty_mae": 3.1758799054326836,
+    "high_uncertainty_mae": 5.895868943602742,
+    "uncertainty_error_spearman": 0.2648284865748692
+  },
+  "test": {
+    "rows": 1240,
+    "mae": 4.035735103910419,
+    "conformal_radius_90": 9.554113371831283,
+    "interval_coverage": 0.9129032258064517,
+    "ece": 0.4739732929764019,
+    "low_uncertainty_mae": 2.7653765437524056,
+    "high_uncertainty_mae": 5.436528016323538,
+    "uncertainty_error_spearman": 0.23838299507134808
+  },
+  "ood": {
+    "rows": 1080,
+    "mae": 11.657019181737496,
+    "conformal_radius_90": 9.554113371831283,
+    "interval_coverage": 0.5101851851851852,
+    "ece": 0.5856015392403029,
+    "low_uncertainty_mae": 15.34484586767754,
+    "high_uncertainty_mae": 5.660566906631107,
+    "uncertainty_error_spearman": -0.4276087723364341
+  }
+}

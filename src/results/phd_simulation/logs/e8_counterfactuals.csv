@@ -1,0 +1,11 @@
+test_id,record_id,perturbed_feature,delta,baseline_urgency,counterfactual_urgency,baseline_action,counterfactual_action,expectation,passed
+0,case_11_0096_cycle_015,focal_position_error_mm,0.22,34.58967971801758,50.58967971801758,2,3,increase_should_not_reduce_action,True
+1,case_11_0077_cycle_019,shielding_gas_flow_l_min,-3.0,29.472522735595703,44.4725227355957,2,2,decrease_should_not_reduce_action,True
+2,case_11_0087_cycle_012,visual_defect_score,18.0,13.728859901428223,25.728859901428223,1,2,increase_should_not_reduce_action,True
+3,case_11_0110_cycle_022,vibration_rms,0.14,35.692806243896484,43.692806243896484,2,3,increase_should_not_reduce_action,True
+4,case_11_0049_cycle_021,lens_contamination_level,0.22,30.61025619506836,40.61025619506836,2,3,increase_should_not_reduce_action,True
+5,case_11_0096_cycle_027,focal_position_error_mm,0.22,36.9809272968401,52.9809272968401,3,4,increase_should_not_reduce_action,True
+6,case_11_0108_cycle_032,shielding_gas_flow_l_min,-3.0,35.29010009765625,50.29010009765625,3,3,decrease_should_not_reduce_action,True
+7,case_11_0077_cycle_004,visual_defect_score,18.0,18.99275779724121,30.99275779724121,1,1,increase_should_not_reduce_action,True
+8,case_11_0041_cycle_038,vibration_rms,0.14,26.726444244384766,34.726444244384766,2,2,increase_should_not_reduce_action,True
+9,case_11_0110_cycle_015,lens_contamination_level,0.22,36.35833740234375,46.35833740234375,2,3,increase_should_not_reduce_action,True

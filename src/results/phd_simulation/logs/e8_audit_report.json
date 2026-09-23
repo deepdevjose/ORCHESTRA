@@ -1,0 +1,12 @@
+{
+  "rows": 800,
+  "complete_rows": 800,
+  "completeness_rate": 1.0,
+  "missing_fields": [],
+  "valid_action_domain": true,
+  "unique_records": 800,
+  "hash_chain_valid": true,
+  "counterfactuals_total": 10,
+  "counterfactuals_passed": 10,
+  "counterfactual_pass_rate": 1.0
+}

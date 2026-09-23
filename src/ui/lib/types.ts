@@ -26,6 +26,9 @@ export interface TelemetryPayload {
   timestamp?: string;
   sequence?: number;
   scenario?: string;
+  machine_name?: string;
+  line?: string;
+  location?: string;
   features?: Record<string, number>;
 }
 
@@ -57,6 +60,57 @@ export interface TelemetryRecord {
   inference: InferenceResult;
 }
 
+export type MachineOperationalState = "production" | "inspection" | "maintenance_planned" | "maintenance_hold" | "stopped";
+export type DecisionAction = "acknowledge" | "inspect" | "hold_production" | "schedule_minor_maintenance" | "schedule_major_maintenance" | "urgent_intervention" | "resume_production";
+
+export interface FleetMachine {
+  deviceId: string;
+  stationId: string;
+  name: string;
+  location: string;
+  line: string;
+  asset: string;
+  operationalState: MachineOperationalState;
+  source: "mqtt" | "demo";
+  scenario: string;
+  lastSeen: string;
+  current: TelemetryRecord | null;
+  urgency: number;
+  uncertainty: number;
+  label: InferenceResult["label"];
+  recommendation: InferenceResult["recommendation"];
+  humanReview: boolean;
+  trend: number[];
+}
+
+export interface DecisionRecord {
+  id: string;
+  timestamp: string;
+  deviceId: string;
+  machineName: string;
+  action: DecisionAction;
+  operator: string;
+  note: string;
+  transport: "mqtt" | "simulated";
+  status: "accepted" | "published";
+}
+
+export interface ModelTelemetry {
+  framesPerMinute: number;
+  averageUrgency: number;
+  averageUncertainty: number;
+  highRiskMachines: number;
+  reviewQueue: number;
+  modelEvents: Array<{
+    id: string;
+    timestamp: string;
+    deviceId: string;
+    event: string;
+    detail: string;
+    level: "info" | "warning" | "critical";
+  }>;
+}
+
 export interface DashboardState {
   connection: "demo" | "connecting" | "mqtt" | "degraded";
   brokerUrl: string;
@@ -74,6 +128,15 @@ export interface DashboardState {
   };
   current: TelemetryRecord | null;
   history: TelemetryRecord[];
+  fleet: FleetMachine[];
+  selectedDeviceId: string;
+  decisions: DecisionRecord[];
+  modelTelemetry: ModelTelemetry;
+  simulation: {
+    enabled: boolean;
+    machineCount: number;
+    label: string;
+  };
   alerts: Array<{
     id: string;
     timestamp: string;
