@@ -17,7 +17,7 @@ export interface DemoMachineProfile {
  * the human-review workflow, but is not evidence from a production cell.
  */
 export const DEMO_MACHINE_PROFILES: DemoMachineProfile[] = [
-  { deviceId: "esp32-sim-01", stationId: "CN-SUZHOU-LW-01", name: "Cell 01 · Orion", location: "Suzhou · Jiangsu", line: "Battery enclosure A", asset: "SIASUN SR12A", scenarioOffset: 0, riskBias: 0.00 },
+  { deviceId: "esp32-wroom32-laser-01", stationId: "CN-SUZHOU-LW-01", name: "Cell 01 · Orion", location: "Suzhou · Jiangsu", line: "Battery enclosure A", asset: "SIASUN SR12A", scenarioOffset: 0, riskBias: 0.00 },
   { deviceId: "esp32-sim-02", stationId: "CN-SUZHOU-LW-02", name: "Cell 02 · Vega", location: "Suzhou · Jiangsu", line: "Battery enclosure A", asset: "SIASUN SR12A", scenarioOffset: 1, riskBias: 0.08 },
   { deviceId: "esp32-sim-03", stationId: "CN-SUZHOU-LW-03", name: "Cell 03 · Altair", location: "Suzhou · Jiangsu", line: "Battery enclosure B", asset: "SIASUN SR12A", scenarioOffset: 2, riskBias: 0.16 },
   { deviceId: "esp32-sim-04", stationId: "CN-SHANGHAI-LW-04", name: "Cell 04 · Polaris", location: "Shanghai · Pudong", line: "Battery enclosure B", asset: "SIASUN SR12A", scenarioOffset: 3, riskBias: 0.22 },

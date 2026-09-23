@@ -95,7 +95,7 @@ npm install
 npm run dev:stack
 ~~~
 
-See `ui/README.md` for the MQTT topic and the 17-feature ESP32 payload contract. Demo telemetry is synthetic/lab-informed and is not evidence of live industrial validation.
+See the platform setup guides for the reproducible Mosquitto stack: [Windows](simulation/README_WINDOWS.md), [Fedora](simulation/README_FEDORA.md), and [Ubuntu](simulation/README_UBUNTU.md). Demo telemetry is synthetic/lab-informed and is not evidence of live industrial validation.
 
 ## Paper Claims Supported
 

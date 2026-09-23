@@ -13,6 +13,7 @@ unsigned long lastTelemetryAt = 0;
 unsigned long sequenceNumber = 0;
 bool commandSubscriptionReady = false;
 String operationalState = "production";
+String requestedScenario = "normal";
 
 void connectToWifi() {
   if (WiFi.status() == WL_CONNECTED) return;
@@ -66,21 +67,26 @@ void readTelemetry(float &laserPower, float &weldingSpeed, float &focalError,
 
   if (USE_SIMULATED_SENSORS) {
     const float drift = fmodf(static_cast<float>(sequenceNumber), 24.0f) / 24.0f;
-    laserPower = simulatedWave(1800.0f + 120.0f * drift, 45.0f, 0.6f, phase);
+    const bool highLaserPower = requestedScenario == "high_laser_power";
+    const bool lowGas = requestedScenario == "low_shielding_gas";
+    const bool focalOffset = requestedScenario == "focal_offset";
+    const bool vibrationScenario = requestedScenario == "fixture_vibration";
+    const bool lensScenario = requestedScenario == "lens_contamination";
+    laserPower = simulatedWave(1800.0f + 120.0f * drift + (highLaserPower ? 280.0f : 0.0f), 45.0f, 0.6f, phase);
     weldingSpeed = simulatedWave(35.0f, 1.7f, 0.45f, phase);
-    focalError = 0.08f + fabsf(sinf(phase * 0.55f)) * 0.04f;
-    shieldingGas = simulatedWave(18.0f, 0.6f, 0.3f, phase);
-    meltPoolTemp = simulatedWave(1450.0f + 90.0f * drift, 48.0f, 0.35f, phase);
-    backReflection = simulatedWave(0.34f + 0.08f * drift, 0.035f, 0.42f, phase);
-    plumeIntensity = simulatedWave(0.45f + 0.04f * drift, 0.04f, 0.37f, phase);
-    spatterCount = 3.0f + fmaxf(0.0f, roundf(sinf(phase * 0.7f) * 2.0f));
-    vibration = 0.08f + fabsf(sinf(phase * 0.52f)) * 0.018f;
-    robotPathError = 0.05f + fabsf(sinf(phase * 0.41f)) * 0.015f;
-    beadWidth = simulatedWave(2.0f, 0.06f, 0.5f, phase);
+    focalError = 0.08f + fabsf(sinf(phase * 0.55f)) * 0.04f + (focalOffset ? 0.28f : 0.0f);
+    shieldingGas = simulatedWave(18.0f - (lowGas ? 6.0f : 0.0f), 0.6f, 0.3f, phase);
+    meltPoolTemp = simulatedWave(1450.0f + 90.0f * drift + (highLaserPower ? 150.0f : 0.0f), 48.0f, 0.35f, phase);
+    backReflection = simulatedWave(0.34f + 0.08f * drift + (lensScenario ? 0.24f : 0.0f), 0.035f, 0.42f, phase);
+    plumeIntensity = simulatedWave(0.45f + 0.04f * drift + (lensScenario ? 0.13f : 0.0f), 0.04f, 0.37f, phase);
+    spatterCount = 3.0f + fmaxf(0.0f, roundf(sinf(phase * 0.7f) * 2.0f)) + (highLaserPower ? 5.0f : 0.0f);
+    vibration = 0.08f + fabsf(sinf(phase * 0.52f)) * 0.018f + (vibrationScenario ? 0.19f : 0.0f);
+    robotPathError = 0.05f + fabsf(sinf(phase * 0.41f)) * 0.015f + (vibrationScenario ? 0.13f : 0.0f);
+    beadWidth = simulatedWave(2.0f + (focalOffset ? 0.18f : 0.0f), 0.06f, 0.5f, phase);
     beadHeight = simulatedWave(0.62f, 0.025f, 0.33f, phase);
-    porosityRisk = 0.12f + fabsf(sinf(phase * 0.28f)) * 0.025f;
-    visualDefect = 8.0f + fmaxf(0.0f, sinf(phase * 0.27f) * 3.0f);
-    lensContamination = 0.12f + fabsf(sinf(phase * 0.24f)) * 0.025f;
+    porosityRisk = 0.12f + fabsf(sinf(phase * 0.28f)) * 0.025f + (lowGas ? 0.35f : 0.0f);
+    visualDefect = 8.0f + fmaxf(0.0f, sinf(phase * 0.27f) * 3.0f) + (focalOffset ? 18.0f : 0.0f);
+    lensContamination = 0.12f + fabsf(sinf(phase * 0.24f)) * 0.025f + (lensScenario ? 0.42f : 0.0f);
     coolingAlarm = (sequenceNumber % 17UL == 0UL) ? 1.0f : 0.0f;
     hoursSinceCleaning = 24.0f + static_cast<float>(sequenceNumber % 12UL) * 1.7f;
     return;
@@ -129,7 +135,7 @@ String telemetryJson() {
   payload += ",\"line\":\"" + String(MACHINE_LINE) + "\"";
   payload += ",\"asset\":\"" + String(MACHINE_ASSET) + "\"";
   payload += ",\"source\":\"" + String(USE_SIMULATED_SENSORS ? "esp32_simulated" : "esp32_live_sensor") + "\"";
-  payload += ",\"scenario\":\"" + String(USE_SIMULATED_SENSORS ? "simulated" : "live_sensor") + "\"";
+  payload += ",\"scenario\":\"" + (USE_SIMULATED_SENSORS ? requestedScenario : String("live_sensor")) + "\"";
   payload += ",\"operational_state\":\"" + operationalState + "\"";
   payload += ",\"wifi_rssi_dbm\":" + String(WiFi.RSSI());
   payload += ",\"signal_quality\":" + String(USE_SIMULATED_SENSORS ? 0.98f : 0.75f, 2);
@@ -184,6 +190,16 @@ void mqttMessageReceived(char *topic, byte *message, unsigned int length) {
   for (unsigned int index = 0; index < length; index++) command += static_cast<char>(message[index]);
 
   const String action = jsonStringField(command, "action");
+  const String scenario = jsonStringField(command, "scenario");
+  if (jsonStringField(command, "command") == "set_scenario" && scenario.length() > 0) {
+    requestedScenario = scenario;
+    Serial.printf("Scenario changed to %s\n", requestedScenario.c_str());
+    String acknowledgement = "{\"device_id\":\"" + String(MQTT_DEVICE_ID) +
+                             "\",\"status\":\"accepted\",\"scenario\":\"" + requestedScenario +
+                             "\",\"payload_version\":\"orchestra.command_ack.v1\"}";
+    mqttClient.publish(MQTT_STATUS_TOPIC, acknowledgement.c_str(), false);
+    return;
+  }
   const bool accepted = applyCommand(action);
   Serial.printf("MQTT command on %s: %s (%s)\n", topic, action.c_str(), accepted ? "accepted" : "rejected");
   String acknowledgement = "{\"device_id\":\"" + String(MQTT_DEVICE_ID) +

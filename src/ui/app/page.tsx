@@ -76,6 +76,7 @@ function DecisionRail({ state, machine, setState }: { state: DashboardState; mac
   const [note, setNote] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [scenario, setScenario] = useState("normal");
   if (!machine) return <aside className="decision-rail"><div className="industrial-empty">Waiting for fleet telemetry.</div></aside>;
   const inference = machine.current?.inference;
   const action = pendingAction ? actionLabels[pendingAction] : "";
@@ -100,12 +101,27 @@ function DecisionRail({ state, machine, setState }: { state: DashboardState; mac
     setNotice("");
     setPendingAction(next);
   };
+  const publishScenario = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/scenario", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ deviceId: machine.deviceId, scenario }) });
+      const result = await response.json() as { ok: boolean; state?: DashboardState; error?: string };
+      if (!response.ok || !result.state) throw new Error(result.error ?? "Scenario was not accepted.");
+      setState(result.state);
+      setNotice(`Scenario ${scenario} published to ${machine.name}.`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Scenario command failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
   return <aside className="decision-rail" id="decision-rail">
     <div className="decision-heading"><div><span className="industrial-eyebrow">SELECTED ASSET / DECISION GATE</span><h2>{machine.name}</h2><p>{machine.stationId} · {machine.line}</p></div><span className={`state-chip ${machine.operationalState}`}>{stateLabel(machine.operationalState)}</span></div>
     <div className="decision-score"><UrgencyDial score={machine.urgency} /><div><span className="industrial-eyebrow">ADJUSTED URGENCY</span><strong className={scoreClass(machine.urgency)}>{machine.label.toUpperCase()}</strong><p>AI {formatNumber(inference?.predictedUrgency, 1)} · gate {formatNumber(machine.urgency, 1)}</p></div></div>
     <div className="uncertainty-block"><div><span>Model uncertainty</span><strong>{formatNumber(machine.uncertainty * 100, 0)}%</strong></div><div className="uncertainty-track"><span style={{ width: `${Math.min(100, machine.uncertainty * 100)}%` }} /></div><small>{machine.humanReview ? "Above review threshold · operator decision required" : "Below review threshold · monitor"}</small></div>
     <div className={`review-callout ${machine.humanReview ? "attention" : "clear"}`}><span className="review-symbol">{machine.humanReview ? "!" : "✓"}</span><div><strong>{machine.humanReview ? "Human review required" : "Selective gate clear"}</strong><span>{inference?.qualityFlags.join(" · ") || "No quality flags on the latest frame."}</span></div></div>
     <div className="recommendation-block"><span className="industrial-eyebrow">MODEL RECOMMENDATION</span><strong>{machine.recommendation.replaceAll("_", " ")}</strong><p>Use the machine context, uncertainty and latest process signals before confirming.</p></div>
+    <div className="scenario-command"><span className="industrial-eyebrow">ESP32 SCENARIO COMMAND</span><div><select value={scenario} onChange={(event) => setScenario(event.target.value)}><option value="normal">Normal</option><option value="low_shielding_gas">Low shielding gas</option><option value="lens_contamination">Lens contamination</option><option value="focal_offset">Focal offset</option><option value="fixture_vibration">Fixture vibration</option><option value="high_laser_power">High laser power</option></select><button type="button" onClick={publishScenario} disabled={busy || machine.source !== "mqtt"}>Publish</button></div><small>Available for the MQTT-connected robot only.</small></div>
     <div className="decision-actions"><div className="decision-actions-label">Operator actions</div><div className="decision-button-grid"><button type="button" onClick={() => request("inspect")}>Inspect</button><button type="button" onClick={() => request("acknowledge")}>Acknowledge</button><button type="button" className="amber" onClick={() => request("hold_production")}>Hold production</button><button type="button" onClick={() => request("schedule_minor_maintenance")}>Schedule minor</button><button type="button" className="amber" onClick={() => request("schedule_major_maintenance")}>Schedule major</button><button type="button" className="red" onClick={() => request("urgent_intervention")}>Urgent intervention</button><button type="button" className="full" onClick={() => request("resume_production")}>Resume production</button></div></div>
     {pendingAction && <div className="decision-confirm"><span className="industrial-eyebrow">CONFIRM HUMAN DECISION</span><strong>{action} · {machine.name}</strong><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Operator note / reason" rows={2} /><div><button type="button" className="confirm" onClick={execute} disabled={busy}>{busy ? "Publishing…" : "Confirm action"}</button><button type="button" className="quiet" onClick={() => setPendingAction(null)}>Cancel</button></div></div>}
     {notice && <div className="decision-notice">{notice}</div>}

@@ -1,0 +1,23 @@
+{
+  "rows": 960,
+  "cases": 48,
+  "missing_feature_columns": [],
+  "missing_metadata_columns": [],
+  "features_finite": true,
+  "scenario_counts": {
+    "normal": 320,
+    "ood_focus_drift": 140,
+    "low_shielding_gas": 120,
+    "thermal_overload": 120,
+    "motion_instability": 100,
+    "lens_contamination": 100,
+    "focal_drift": 60
+  },
+  "split_counts": {
+    "train": 480,
+    "test": 180,
+    "calibration": 160,
+    "ood": 140
+  },
+  "ood_isolated": true
+}

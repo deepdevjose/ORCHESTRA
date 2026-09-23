@@ -61,4 +61,4 @@ mosquitto_sub -h <COMPUTER_IP_ON_AP> -p 1883 \
   -t 'orchestra/laser-welding/+/telemetry' -v
 ```
 
-The UI starts with a deterministic 10-machine synthetic feed when MQTT is unavailable. One physical ESP32 can then be introduced as a live MQTT source without changing the 17-field contract.
+When MQTT is configured, the UI keeps robots 2-10 on the deterministic synthetic feed and reserves Robot 1 (`esp32-wroom32-laser-01`) for the ESP32 MQTT source. Without MQTT, all ten profiles remain a local fallback. See `simulation/README_WINDOWS.md` for the complete Windows setup.

@@ -77,7 +77,7 @@ class LiveTelemetryService {
       reviewQueue: 0,
       modelEvents: [],
     },
-    simulation: { enabled: true, machineCount: DEMO_MACHINE_PROFILES.length, label: "SYNTHETIC LAB SIMULATION" },
+    simulation: { enabled: true, machineCount: DEMO_MACHINE_PROFILES.length - 1, label: "1 EDGE + 9 SYNTHETIC" },
     alerts: [],
     totals: { messages: 0, reviews: 0, overrides: 0, mqttMessages: 0 },
     updatedAt: now(),
@@ -158,6 +158,23 @@ class LiveTelemetryService {
     return this.state;
   }
 
+  publishScenario(deviceId: string, scenario: string) {
+    this.start();
+    const machine = this.state.fleet.find((item) => item.deviceId === deviceId);
+    if (!machine) throw new Error("Unknown machine: " + deviceId);
+    const connected = Boolean(this.mqttClient?.connected);
+    if (!connected) throw new Error("MQTT is not connected; scenario commands require the ESP32 broker path.");
+    this.mqttClient?.publish(this.commandTopicFor(deviceId), JSON.stringify({
+      device_id: deviceId,
+      command: "set_scenario",
+      scenario,
+      timestamp: now(),
+      source: "orchestra-dashboard",
+    }), { qos: 1 });
+    this.addAlert("Scenario command published", `${machine.name} · ${scenario}`, "info");
+    return this.state;
+  }
+
   private emit() {
     for (const listener of this.listeners) listener(this.state);
   }
@@ -178,7 +195,14 @@ class LiveTelemetryService {
 
   private async ingestDemoBatch() {
     const sequence = this.demoSequence++;
-    await Promise.all(DEMO_MACHINE_PROFILES.map((_, index) => this.ingest(createDemoTelemetry(sequence, index), "demo")));
+    const liveDeviceId = process.env.ORCHESTRA_LIVE_DEVICE_ID ?? DEMO_MACHINE_PROFILES[0].deviceId;
+    const profiles = process.env.MQTT_BROKER_URL
+      ? DEMO_MACHINE_PROFILES.filter((profile) => profile.deviceId !== liveDeviceId)
+      : DEMO_MACHINE_PROFILES;
+    await Promise.all(profiles.map((profile) => {
+      const index = DEMO_MACHINE_PROFILES.indexOf(profile);
+      return this.ingest(createDemoTelemetry(sequence, index), "demo");
+    }));
   }
 
   private stopDemo() {
@@ -197,7 +221,6 @@ class LiveTelemetryService {
       connectTimeout: 5000,
     });
     this.mqttClient.on("connect", () => {
-      this.stopDemo();
       this.setConnection("mqtt");
       this.mqttClient?.subscribe(this.state.mqttTopic, { qos: 0 });
     });
@@ -331,7 +354,7 @@ class LiveTelemetryService {
           reviewQueue: currentFleet.filter((item) => item.humanReview && item.operationalState === "production").length,
           modelEvents: modelEvent ? [modelEvent, ...this.state.modelTelemetry.modelEvents].slice(0, 20) : this.state.modelTelemetry.modelEvents,
         },
-        simulation: { ...this.state.simulation, enabled: source === "demo" ? true : this.state.simulation.enabled, machineCount: fleet.length },
+        simulation: { ...this.state.simulation, enabled: true, machineCount: fleet.filter((item) => item.source === "demo").length },
         totals: {
           messages: this.state.totals.messages + 1,
           reviews: this.state.totals.reviews + (inference.humanReview ? 1 : 0),
