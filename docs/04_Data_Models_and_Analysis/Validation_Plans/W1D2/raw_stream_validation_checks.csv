@@ -1,0 +1,9 @@
+check,pass
+all configured feature columns exist,True
+all required metadata columns exist,True
+feature columns have no missing values,True
+record_id values are unique,True
+same seed reproduces the stream,True
+OOD cases are present,True
+normal cases are present,True
+focus-drift degradation cases are present,True

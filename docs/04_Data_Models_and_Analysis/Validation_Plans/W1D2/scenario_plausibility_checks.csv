@@ -1,0 +1,9 @@
+expectation,observed_comparison,pass
+focal_offset has higher focal error than normal,0.384 > 0.074,True
+OOD focus drift exceeds in-distribution focal_offset,0.883 > 0.384,True
+low_shielding_gas has lower gas flow than normal,11.903 < 18.137,True
+OOD stress has lower gas flow than normal,8.662 < 18.137,True
+fixture_vibration has higher vibration than normal,0.279 > 0.077,True
+lens_contamination_proxy has higher lens contamination than normal,0.527 > 0.115,True
+OOD stress has higher lens contamination than normal,0.681 > 0.115,True
+OOD stress has higher visual defect score than normal,51.959 > 8.269,True

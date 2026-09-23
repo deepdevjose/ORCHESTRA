@@ -1,0 +1,43 @@
+{
+  "week": "Week 1",
+  "dates": "2026-09-03 to 2026-09-09",
+  "scope": "simulation-only validation",
+  "primary_evidence_target": "E1 simulation validity",
+  "seed": 42,
+  "rows": {
+    "raw_stream": 660,
+    "in_distribution": 600,
+    "ood": 60,
+    "feature_vector": 660,
+    "train": 450,
+    "test": 150,
+    "ood_feature_rows": 60
+  },
+  "checks": {
+    "spec_minimum_sections_present": true,
+    "raw_stream_checks_pass": true,
+    "scenario_plausibility_checks_pass": true,
+    "feature_vector_checks_pass": true,
+    "environment_state_checks_pass": true,
+    "environment_rewards_finite": true,
+    "trace_checks_pass": true,
+    "evidence_inventory_complete": true
+  },
+  "main_outputs": {
+    "spec": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D1/spec.md",
+    "raw_stream": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D2/raw_stream.csv",
+    "feature_vector": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D3/feature_vector.csv",
+    "environment_sanity": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D4/week1_environment_sanity.csv",
+    "baseline_smoke": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D5/week1_baseline_smoke.csv",
+    "trace": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D6/week1_rule_based_trace.csv",
+    "figures": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D6/figures",
+    "evidence_inventory": "/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D7/week1_evidence_inventory.csv"
+  },
+  "valid_claim": "The Week 1 simulation foundation can generate seeded, traceable synthetic laser-welding streams, explicit OOD stress cases, feature vectors with provenance, environment sanity checks, smoke baselines, diagnostic figures, and one reconstructable trace.",
+  "forbidden_claims": [
+    "No real hardware validation is demonstrated.",
+    "No live operator study is demonstrated.",
+    "No final statistical superiority claim is demonstrated.",
+    "No safety certification claim is demonstrated."
+  ]
+}

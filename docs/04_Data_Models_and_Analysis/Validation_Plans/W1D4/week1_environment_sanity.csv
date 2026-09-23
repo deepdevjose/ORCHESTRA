@@ -1,0 +1,11 @@
+case,case_urgency,action,action_name,reward,downtime,cost,failure,unnecessary,risk_after_action,alignment_bonus,reward_is_finite
+low_urgency_case,0.0,0,do_nothing,2.487980140246483,0.0,0.0,False,False,0.0,1.5,True
+low_urgency_case,0.0,1,inspect,-0.39366523718063706,0.08364537742711997,0.06,False,False,0.0,0.0,True
+low_urgency_case,0.0,2,minor_maintenance,-2.143721958964537,0.2557020992110199,0.22,False,True,0.0,0.0,True
+low_urgency_case,0.0,3,major_maintenance,-4.081161664213267,0.48514180445974986,0.48,False,True,0.0,0.0,True
+low_urgency_case,0.0,4,urgent_intervention,-6.152133303321317,0.7841134435677999,0.82,False,True,0.0,0.0,True
+high_urgency_case,52.18833493550904,0,do_nothing,-0.20033170351670782,0.0,0.0,False,False,0.6001658517583539,0.0,True
+high_urgency_case,52.18833493550904,1,inspect,0.9901654261006898,0.07463287999565656,0.06,False,False,0.44360084695182683,1.0,True
+high_urgency_case,52.18833493550904,2,minor_maintenance,1.5666926706546824,0.23542397999022724,0.22,False,False,0.2609416746775452,1.5,True
+high_urgency_case,52.18833493550904,3,major_maintenance,-3.5706064237026665,0.45697774998642676,0.48,False,False,0.11481433685811988,0.0,True
+high_urgency_case,52.18833493550904,4,urgent_intervention,-6.201083535885956,0.7615821999891413,0.82,False,True,0.04175066794840723,0.0,True

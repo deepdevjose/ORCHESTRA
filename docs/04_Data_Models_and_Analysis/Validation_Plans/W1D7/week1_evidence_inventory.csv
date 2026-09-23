@@ -1,0 +1,14 @@
+week_item,artifact,purpose,exists
+W1D1,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D1/spec.md,Scientific claim contract,True
+W1D2,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D2/raw_stream.csv,Seeded synthetic raw stream,True
+W1D2,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D2/ood_stream.csv,Explicit OOD focus-drift stress cases,True
+W1D2,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D2/raw_stream_validation_checks.csv,Raw stream validation checks,True
+W1D2,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D2/scenario_plausibility_checks.csv,Scenario plausibility checks,True
+W1D3,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D3/feature_vector.csv,Feature vector with provenance and splits,True
+W1D3,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D3/feature_vector_validation_checks.csv,Feature vector validation checks,True
+W1D4,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D4/week1_environment_sanity.csv,Environment sanity table,True
+W1D5,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D5/week1_baseline_smoke.csv,Random/rule baseline smoke test,True
+W1D6,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D6/figures/week1_urgency_vs_time.png,Urgency over time diagnostic,True
+W1D6,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D6/figures/week1_feature_distributions.png,Feature distribution diagnostic,True
+W1D6,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D6/figures/week1_reward_trace.png,Reward trace diagnostic,True
+W1D6,/home/deepdevjose/Documents/Jose Manuel RDF/04_Data_Models_and_Analysis/Validation_Plans/W1D6/week1_rule_based_trace.csv,One reconstructable rule-based episode trace,True

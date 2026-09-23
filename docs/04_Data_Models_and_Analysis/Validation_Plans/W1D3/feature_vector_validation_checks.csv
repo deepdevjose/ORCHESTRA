@@ -1,0 +1,10 @@
+check,pass
+all configured features exist,True
+all metadata fields exist,True
+target fields exist,True
+scheduling context fields exist,True
+feature columns have no missing values,True
+urgency score is within 0-100,True
+train split is present,True
+test split is present,True
+ood split is present,True
