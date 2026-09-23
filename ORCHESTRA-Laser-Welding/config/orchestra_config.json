@@ -1,0 +1,43 @@
+﻿{
+  "random_seed": 42,
+  "n_samples": 600,
+  "train_fraction": 0.75,
+  "episode_length": 120,
+  "n_eval_episodes": 30,
+  "uncertainty_threshold": 0.45,
+  "high_urgency_threshold": 70.0,
+  "medium_urgency_threshold": 40.0,
+  "human_review": {
+    "override_probability": 0.65,
+    "false_negative_sensitivity": 0.80,
+    "noise_std": 4.0
+  },
+  "reward_weights": {
+    "risk": 2.0,
+    "downtime": 1.0,
+    "cost": 0.8,
+    "unnecessary_maintenance": 0.7,
+    "human_review": 0.15
+  },
+  "feature_columns": [
+    "laser_power_w",
+    "welding_speed_mm_s",
+    "focal_position_error_mm",
+    "shielding_gas_flow_l_min",
+    "melt_pool_temp_c",
+    "back_reflection_intensity",
+    "plume_intensity",
+    "spatter_count",
+    "vibration_rms",
+    "robot_path_error_mm",
+    "bead_width_mm",
+    "bead_height_mm",
+    "porosity_risk",
+    "visual_defect_score",
+    "lens_contamination_level",
+    "cooling_system_alarm",
+    "time_since_lens_cleaning_h"
+  ]
+}
+
+

@@ -1,0 +1,12 @@
+Metric,Value
+mean_episode_reward,614.3885161
+std_episode_reward,27.87321285
+mean_critical_failures,0
+mean_unnecessary_maintenance,0.3
+mean_human_interventions,38.72
+mean_human_overrides,7.74
+mean_downtime_proxy,6.670098928
+mean_cost_proxy,28.07800256
+action_2_percentage,22.36
+action_3_percentage,20.7
+action_4_percentage,56.94

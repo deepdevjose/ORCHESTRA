@@ -1,0 +1,11 @@
+{
+  "python.defaultInterpreterPath": "python",
+  "python.analysis.extraPaths": [
+    "./src"
+  ],
+  "files.exclude": {
+    "**/__pycache__": true,
+    "**/*.pyc": true
+  }
+}
+

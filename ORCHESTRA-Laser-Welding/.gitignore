@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+data/raw/*.csv
+data/processed/*.csv
+results/tables/*.csv
+results/logs/*.json
+results/figures/*.png
+models/*.json
+models/*.pkl
+models/*.zip
+

@@ -1,0 +1,5 @@
+experiment,mean_episode_reward,std_episode_reward,mean_critical_failures,mean_unnecessary_maintenance,mean_downtime_proxy,mean_cost_proxy,mean_human_interventions,human_intervention_rate_percent,mean_human_overrides,human_override_rate_percent,action_0_percent,action_1_percent,action_2_percent,action_3_percent,action_4_percent
+balanced,608.6020277469792,25.557879979659013,0.0,0.4,6.546531483534724,27.933954387634994,38.66,38.66,7.12,7.12,0.0,0.0,21.86,21.1,57.04
+risk_focused,602.5346851646527,28.0969743292713,0.0,0.4,6.546531483534724,27.933954387634994,38.66,38.66,7.12,7.12,0.0,0.0,21.86,21.1,57.04
+cost_focused,575.9840554939583,22.034449013209468,0.0,0.4,6.546531483534724,27.933954387634994,38.66,38.66,7.12,7.12,0.0,0.0,21.86,21.1,57.04
+uncertainty_focused,506.9620277469792,36.77307218700549,0.0,0.4,6.546531483534724,27.933954387634994,38.66,38.66,7.12,7.12,0.0,0.0,21.86,21.1,57.04
