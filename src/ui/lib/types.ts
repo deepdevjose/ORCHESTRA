@@ -34,6 +34,12 @@ export interface TelemetryPayload {
   shift_load_pieces?: number;
   pieces_produced?: number;
   pieces_remaining?: number;
+  order_id?: string;
+  order_target_pieces?: number;
+  checkpoint_pieces?: number;
+  maintenance_count?: number;
+  service_wear?: number;
+  lifetime_percent?: number;
   simulated_health?: number;
   simulated_risk?: number;
   data_quality?: "valid" | "atypical";
@@ -69,7 +75,36 @@ export interface TelemetryRecord {
 }
 
 export type MachineOperationalState = "production" | "inspection" | "maintenance_planned" | "maintenance_hold" | "stopped";
-export type DecisionAction = "acknowledge" | "inspect" | "hold_production" | "schedule_minor_maintenance" | "schedule_major_maintenance" | "urgent_intervention" | "resume_production";
+export type DecisionAction = "acknowledge" | "inspect" | "hold_production" | "schedule_minor_maintenance" | "schedule_major_maintenance" | "urgent_intervention" | "resume_production" | "reset_lifetime";
+
+export type AgentKey = "telemetry_quality" | "predictive_inference" | "shift_scheduler";
+
+export interface AgentDecisionTrace {
+  agent: AgentKey;
+  label: string;
+  status: "pass" | "review" | "hold";
+  decision: string;
+  detail: string;
+  timestamp: string;
+}
+
+export interface ProductionOrder {
+  id: string;
+  productType: string;
+  targetPieces: number;
+  completedPieces: number;
+  remainingPieces: number;
+  shiftId: string;
+  shiftLengthMinutes: number;
+  checkpointEveryPieces: number;
+  lastCheckpointPieces: number;
+  nextCheckpointPieces: number;
+  fleetPiecesPerSecond: number;
+  cycleTimeSecondsPerCell: number;
+  simulationSecondsPerTick: number;
+  status: "setup" | "running" | "paused" | "completed";
+  assumption: string;
+}
 
 export interface FleetMachine {
   deviceId: string;
@@ -94,7 +129,11 @@ export interface FleetMachine {
   piecesProduced: number;
   piecesRemaining: number;
   health: number;
+  lifetimePercent: number;
+  maintenanceCount: number;
+  serviceWear: number;
   dataQuality: "valid" | "atypical";
+  agentTrace: AgentDecisionTrace[];
   productionPlan: {
     maxAdditionalPieces: number;
     reevaluateEveryPieces: number;
@@ -156,6 +195,12 @@ export interface DashboardState {
     machineCount: number;
     label: string;
     failureHorizonMinutes: number;
+    productionOrder: ProductionOrder | null;
+    checkpointCount: number;
+    lastCheckpointAt: string | null;
+    cycleTimeSecondsPerCell: number;
+    fleetPiecesPerSecond: number;
+    simulationSecondsPerTick: number;
   };
   alerts: Array<{
     id: string;

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { DashboardState } from "./types";
 
+/** Subscribe the client dashboard to the server-sent state stream. */
 export function useLiveState() {
   const [state, setState] = useState<DashboardState | null>(null);
   const [streamStatus, setStreamStatus] = useState<"connecting" | "live" | "reconnecting">("connecting");

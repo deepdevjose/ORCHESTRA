@@ -1,3 +1,5 @@
+"""Regression, grouped validation, uncertainty, and feature attribution."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,6 +12,7 @@ from .schema import FEATURE_COLUMNS
 
 
 def regression_metrics(y_true: np.ndarray, y_pred: np.ndarray) -> dict[str, float]:
+    """Compute MAE, RMSE, and R-squared for continuous urgency predictions."""
     y_true = np.asarray(y_true, dtype=float)
     y_pred = np.asarray(y_pred, dtype=float)
     error = y_true - y_pred
@@ -95,6 +98,7 @@ def _make_model(name: str, seed: int, xgb_estimators: int = 80) -> Any:
 
 @dataclass
 class FittedPredictor:
+    """Calibrated regressor plus preprocessing statistics and ensemble models."""
     model_name: str
     feature_columns: list[str]
     model: Any
@@ -111,16 +115,19 @@ class FittedPredictor:
         return values.to_numpy(dtype=float)
 
     def predict(self, frame: pd.DataFrame) -> np.ndarray:
+        """Return urgency predictions clipped to the contract range 0–100."""
         prediction = np.asarray(self.model.predict(self._matrix(frame)), dtype=float)
         return np.clip(prediction, 0, 100)
 
     def ensemble_predict(self, frame: pd.DataFrame) -> np.ndarray:
+        """Return one clipped prediction vector for each ensemble member."""
         models = self.ensemble_models or [self.model]
         values = self._matrix(frame)
         predictions = [np.asarray(model.predict(values), dtype=float) for model in models]
         return np.clip(np.vstack(predictions), 0, 100)
 
     def uncertainty(self, frame: pd.DataFrame, predictions: np.ndarray | None = None) -> np.ndarray:
+        """Combine ensemble disagreement, support distance, and boundary proximity."""
         predictions = self.predict(frame) if predictions is None else np.asarray(predictions, dtype=float)
         ensemble = self.ensemble_predict(frame)
         disagreement = np.std(ensemble, axis=0) / 14.0
@@ -157,6 +164,7 @@ def fit_predictor(
     ensemble_frames: list[tuple[pd.DataFrame, pd.DataFrame]] | None = None,
     conformal_radius: float = 0.0,
 ) -> FittedPredictor:
+    """Fit a final regressor and optional fold ensemble on training rows."""
     feature_columns = feature_columns or FEATURE_COLUMNS
     x, y, medians, means, stds = _prepare_xy(train, feature_columns)
     models: list[Any] = []
@@ -288,6 +296,7 @@ def fit_xgb_with_calibration(
 
 
 def calibration_metrics(frame: pd.DataFrame, predictor: FittedPredictor) -> dict[str, float]:
+    """Measure error, conformal coverage, ECE, and error–uncertainty association."""
     y = frame["maintenance_urgency_score"].to_numpy(dtype=float)
     pred = predictor.predict(frame)
     uncertainty = predictor.uncertainty(frame, pred)

@@ -3,10 +3,12 @@ import mqtt, { MqttClient } from "mqtt";
 import { createDemoTelemetry, DEMO_MACHINE_PROFILES } from "./demo";
 import { scoreTelemetry } from "./model-client";
 import {
+  AgentDecisionTrace,
   DashboardState,
   DecisionAction,
   FEATURE_DEFINITIONS,
   FleetMachine,
+  ProductionOrder,
   TelemetryPayload,
   TelemetryRecord,
 } from "./types";
@@ -14,13 +16,20 @@ import {
 type StateListener = (state: DashboardState) => void;
 type SyntheticRuntime = {
   health: number;
+  serviceWear: number;
+  maintenanceCount: number;
   shiftId: string;
   shiftLoadPieces: number;
   piecesProduced: number;
   piecesRemaining: number;
   cooldownTicks: number;
+  pieceAccumulator: number;
 };
 const GLOBAL_KEY = "__orchestra_live_service__";
+const DEMO_TICK_MS = 2200;
+const SIMULATION_SECONDS_PER_TICK = 10;
+const CYCLE_TIME_SECONDS_PER_CELL = 60;
+const FLEET_PIECES_PER_SECOND = DEMO_MACHINE_PROFILES.length / CYCLE_TIME_SECONDS_PER_CELL;
 
 function now() {
   return new Date().toISOString();
@@ -30,6 +39,28 @@ function levelFor(record: TelemetryRecord): "info" | "warning" | "critical" {
   if (record.inference.adjustedUrgency >= 82) return "critical";
   if (record.inference.humanReview || record.inference.adjustedUrgency >= 40) return "warning";
   return "info";
+}
+
+function smoothValue(previous: number | undefined, next: number, alpha: number, maxStep: number) {
+  if (previous === undefined || !Number.isFinite(previous) || !Number.isFinite(next)) return next;
+  const delta = (next - previous) * alpha;
+  return previous + Math.sign(delta) * Math.min(Math.abs(delta), maxStep);
+}
+
+function smoothFeatures(previous: TelemetryRecord["features"] | undefined, next: Record<string, number>) {
+  if (!previous) return next;
+  return Object.fromEntries(Object.entries(next).map(([key, value]) => [
+    key,
+    smoothValue(previous[key as keyof typeof previous], value, 0.24, Math.max(Math.abs(value) * 0.08, 0.02)),
+  ]));
+}
+
+function freshAgentTrace(): AgentDecisionTrace[] {
+  return [
+    { agent: "telemetry_quality", label: "Agent 1 · Telemetry quality", status: "pass", decision: "Awaiting frame", detail: "Validates the 17-feature contract, source and quality flags.", timestamp: now() },
+    { agent: "predictive_inference", label: "Agent 2 · Predictive risk", status: "pass", decision: "Awaiting frame", detail: "Scores urgency, process instability and uncertainty.", timestamp: now() },
+    { agent: "shift_scheduler", label: "Agent 3 · Shift scheduler", status: "pass", decision: "Awaiting order", detail: "Bounds production, checkpoints and maintenance actions.", timestamp: now() },
+  ];
 }
 
 function machineFromProfile(profile: (typeof DEMO_MACHINE_PROFILES)[number]): FleetMachine {
@@ -56,15 +87,16 @@ function machineFromProfile(profile: (typeof DEMO_MACHINE_PROFILES)[number]): Fl
     piecesProduced: 0,
     piecesRemaining: 0,
     health: 0,
+    lifetimePercent: 100,
+    maintenanceCount: 0,
+    serviceWear: 0,
     dataQuality: "valid",
+    agentTrace: freshAgentTrace(),
     productionPlan: { maxAdditionalPieces: 0, reevaluateEveryPieces: 0, action: "stop_and_review" },
   };
 }
 
-function shiftLoadFor(sequence: number, machineIndex: number) {
-  const loads = [1000, 5000, 25000, 100000, 1000000];
-  return loads[(Math.floor(sequence / 40) + machineIndex) % loads.length];
-}
+function shiftLoadFor() { return 1000; }
 
 class LiveTelemetryService {
   private started = false;
@@ -74,6 +106,7 @@ class LiveTelemetryService {
   private mqttClient: MqttClient | undefined;
   private syntheticRuntime = new Map<string, SyntheticRuntime>();
   private listeners = new Set<StateListener>();
+  private orderPieceAccumulator = 0;
   private state: DashboardState = {
     connection: "demo",
     brokerUrl: process.env.MQTT_BROKER_URL ?? "not configured",
@@ -98,12 +131,24 @@ class LiveTelemetryService {
       reviewQueue: 0,
       modelEvents: [],
     },
-    simulation: { enabled: true, machineCount: DEMO_MACHINE_PROFILES.length - 1, label: "1 EDGE + 9 SYNTHETIC", failureHorizonMinutes: 60 },
+    simulation: {
+      enabled: true,
+      machineCount: DEMO_MACHINE_PROFILES.length - 1,
+      label: "1 EDGE + 9 SYNTHETIC",
+      failureHorizonMinutes: 60,
+      productionOrder: null,
+      checkpointCount: 0,
+      lastCheckpointAt: null,
+      cycleTimeSecondsPerCell: CYCLE_TIME_SECONDS_PER_CELL,
+      fleetPiecesPerSecond: FLEET_PIECES_PER_SECOND,
+      simulationSecondsPerTick: SIMULATION_SECONDS_PER_TICK,
+    },
     alerts: [],
     totals: { messages: 0, reviews: 0, overrides: 0, mqttMessages: 0 },
     updatedAt: now(),
   };
 
+  /** Start synthetic telemetry and optionally connect to the configured MQTT broker. */
   start() {
     if (this.started) return;
     this.started = true;
@@ -112,11 +157,13 @@ class LiveTelemetryService {
     if (process.env.MQTT_BROKER_URL) this.connectMqtt();
   }
 
+  /** Return the current dashboard snapshot, starting the service on first access. */
   getState() {
     this.start();
     return this.state;
   }
 
+  /** Register a state listener and immediately deliver the current snapshot. */
   subscribe(listener: StateListener) {
     this.start();
     this.listeners.add(listener);
@@ -124,11 +171,109 @@ class LiveTelemetryService {
     return () => this.listeners.delete(listener);
   }
 
+  /** Start a production order and reset fleet progress to the new shift baseline. */
+  configureOrder(targetPieces: number, productType = "Large automotive chassis", shiftLengthMinutes = 480) {
+    this.start();
+    const target = Math.min(1_000_000, Math.max(1, Math.round(targetPieces)));
+    const checkpointEveryPieces = Math.max(1, Math.ceil(target / 10));
+    const order: ProductionOrder = {
+      id: `ORD-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`,
+      productType: productType.trim() || "Large automotive chassis",
+      targetPieces: target,
+      completedPieces: 0,
+      remainingPieces: target,
+      shiftId: "SHIFT-01",
+      shiftLengthMinutes: Math.max(1, Math.round(shiftLengthMinutes)),
+      checkpointEveryPieces,
+      lastCheckpointPieces: 0,
+      nextCheckpointPieces: checkpointEveryPieces,
+      fleetPiecesPerSecond: FLEET_PIECES_PER_SECOND,
+      cycleTimeSecondsPerCell: CYCLE_TIME_SECONDS_PER_CELL,
+      simulationSecondsPerTick: SIMULATION_SECONDS_PER_TICK,
+      status: "running",
+      assumption: "10 independent cells × 1 chassis / 60 s; accelerated clock: 10 simulated seconds per dashboard tick.",
+    };
+    this.orderPieceAccumulator = 0;
+    this.syntheticRuntime.clear();
+    this.state = {
+      ...this.state,
+      current: null,
+      history: [],
+      decisions: [],
+      alerts: [{ id: randomUUID(), timestamp: now(), title: "Production order started", detail: `${order.id} · ${order.targetPieces.toLocaleString()} pieces · ${order.shiftId}`, level: "info" as const }, ...this.state.alerts].slice(0, 12),
+      fleet: this.state.fleet.map((machine) => ({
+        ...machine,
+        operationalState: "production",
+        current: null,
+        urgency: 0,
+        uncertainty: 0,
+        trend: [],
+        shiftId: order.shiftId,
+        shiftLoadPieces: order.targetPieces,
+        piecesProduced: 0,
+        piecesRemaining: order.targetPieces,
+        health: 0,
+        lifetimePercent: 100,
+        maintenanceCount: 0,
+        serviceWear: 0,
+        agentTrace: freshAgentTrace(),
+      })),
+      simulation: { ...this.state.simulation, productionOrder: order, checkpointCount: 0, lastCheckpointAt: null },
+      updatedAt: now(),
+    };
+    this.emit();
+    return this.state;
+  }
+
+  /** Clear order progress, checkpoints, traces, and synthetic machine wear. */
+  resetSimulation() {
+    this.start();
+    const timestamp = now();
+    for (const machine of this.state.fleet) {
+      if (this.mqttClient?.connected) this.publishResetLifetime(machine.deviceId, timestamp);
+    }
+    this.syntheticRuntime.clear();
+    this.orderPieceAccumulator = 0;
+    this.demoSequence = 1;
+    this.state = {
+      ...this.state,
+      current: null,
+      history: [],
+      decisions: [],
+      alerts: [{ id: randomUUID(), timestamp, title: "Simulation reset", detail: "Order, checkpoints, maintenance wear and robot lifetime restored to setup state.", level: "info" as const }, ...this.state.alerts].slice(0, 12),
+      fleet: this.state.fleet.map((machine) => ({
+        ...machine,
+        operationalState: "production",
+        current: null,
+        urgency: 0,
+        uncertainty: 0,
+        trend: [],
+        shiftId: "awaiting shift",
+        shiftLoadPieces: 0,
+        piecesProduced: 0,
+        piecesRemaining: 0,
+        health: 0,
+        lifetimePercent: 100,
+        maintenanceCount: 0,
+        serviceWear: 0,
+        agentTrace: freshAgentTrace(),
+      })),
+      simulation: { ...this.state.simulation, productionOrder: null, checkpointCount: 0, lastCheckpointAt: null },
+      totals: { messages: 0, reviews: 0, overrides: 0, mqttMessages: 0 },
+      updatedAt: timestamp,
+    };
+    this.emit();
+    return this.state;
+  }
+
+  /** Apply an operator decision locally and publish it over MQTT when connected. */
   executeDecision(deviceId: string, action: DecisionAction, operator: string, note: string) {
     this.start();
     const machine = this.state.fleet.find((item) => item.deviceId === deviceId);
     if (!machine) throw new Error("Unknown machine: " + deviceId);
-    const nextState: FleetMachine["operationalState"] = action === "urgent_intervention"
+    const nextState: FleetMachine["operationalState"] = action === "reset_lifetime"
+      ? "production"
+      : action === "urgent_intervention"
       ? "stopped"
       : action === "hold_production" || action === "schedule_major_maintenance"
         ? "maintenance_hold"
@@ -140,12 +285,21 @@ class LiveTelemetryService {
               ? "production"
               : machine.operationalState;
     const connected = Boolean(this.mqttClient?.connected);
-    if (!connected && (action === "schedule_minor_maintenance" || action === "schedule_major_maintenance" || action === "urgent_intervention")) {
-      const runtime = this.syntheticRuntime.get(deviceId);
-      if (runtime) {
-        runtime.health = 0.03;
-        runtime.cooldownTicks = action === "schedule_minor_maintenance" ? 8 : 14;
-      }
+    const runtime = this.syntheticRuntime.get(deviceId);
+    if (runtime && action === "reset_lifetime") {
+      runtime.health = 0;
+      runtime.serviceWear = 0;
+      runtime.maintenanceCount = 0;
+      runtime.cooldownTicks = 0;
+    }
+    if (runtime && (action === "schedule_minor_maintenance" || action === "schedule_major_maintenance")) {
+      runtime.maintenanceCount += 1;
+      runtime.serviceWear = Math.min(0.45, runtime.serviceWear + 0.04);
+      runtime.health = Math.max(0.02, runtime.serviceWear);
+      runtime.cooldownTicks = action === "schedule_minor_maintenance" ? 8 : 14;
+    } else if (runtime && action === "urgent_intervention") {
+      runtime.health = Math.max(runtime.health, 0.06);
+      runtime.cooldownTicks = 14;
     }
     const decision = {
       id: randomUUID(),
@@ -168,10 +322,21 @@ class LiveTelemetryService {
         source: "orchestra-dashboard",
       }), { qos: 0 });
     }
+    const maintenanceCommand = action === "schedule_minor_maintenance" || action === "schedule_major_maintenance";
+    const immediateWear = runtime?.serviceWear ?? (maintenanceCommand ? Math.min(0.45, machine.serviceWear + 0.04) : machine.serviceWear);
+    const immediateMaintenanceCount = runtime?.maintenanceCount ?? (maintenanceCommand ? machine.maintenanceCount + 1 : machine.maintenanceCount);
+    const runtimeState = action === "reset_lifetime"
+      ? { health: 0, lifetimePercent: 100, maintenanceCount: 0, serviceWear: 0 }
+      : (runtime || maintenanceCommand) ? {
+        health: runtime?.health ?? Math.max(0.02, immediateWear),
+        lifetimePercent: Math.max(0, 100 - immediateWear * 100),
+        maintenanceCount: immediateMaintenanceCount,
+        serviceWear: immediateWear,
+      } : {};
     this.state = {
       ...this.state,
       selectedDeviceId: deviceId,
-      fleet: this.state.fleet.map((item) => item.deviceId === deviceId ? { ...item, operationalState: nextState } : item),
+      fleet: this.state.fleet.map((item) => item.deviceId === deviceId ? { ...item, operationalState: nextState, ...runtimeState } : item),
       decisions: [decision, ...this.state.decisions].slice(0, 30),
       alerts: [{
         id: decision.id,
@@ -186,6 +351,18 @@ class LiveTelemetryService {
     return this.state;
   }
 
+  private publishResetLifetime(deviceId: string, timestamp = now()) {
+    this.mqttClient?.publish(this.commandTopicFor(deviceId), JSON.stringify({
+      device_id: deviceId,
+      action: "reset_lifetime",
+      operator: "simulation-reset",
+      note: "Restore simulated robot and ESP32 firmware lifetime to 100%.",
+      timestamp,
+      source: "orchestra-dashboard",
+    }), { qos: 1 });
+  }
+
+  /** Publish a scenario command for an MQTT-connected edge device. */
   publishScenario(deviceId: string, scenario: string) {
     this.start();
     const machine = this.state.fleet.find((item) => item.deviceId === deviceId);
@@ -203,6 +380,7 @@ class LiveTelemetryService {
     return this.state;
   }
 
+  /** Update the displayed simulation horizon without changing the research model. */
   setFailureHorizon(minutes: number) {
     this.start();
     const failureHorizonMinutes = Math.min(60, Math.max(5, Math.round(minutes)));
@@ -229,12 +407,15 @@ class LiveTelemetryService {
     this.setConnection(process.env.MQTT_BROKER_URL ? "connecting" : "demo");
     void this.ingestDemoBatch();
     this.demoTimer = setInterval(() => {
-      if (!this.mqttClient?.connected) void this.ingestDemoBatch();
-    }, 2200);
+      // Keep the nine synthetic cells running even when the first ESP32 cell is
+      // connected. The dashboard is intentionally a mixed edge + lab fleet.
+      void this.ingestDemoBatch();
+    }, DEMO_TICK_MS);
   }
 
   private async ingestDemoBatch() {
     const sequence = this.demoSequence++;
+    this.advanceProductionOrder();
     const liveDeviceId = process.env.ORCHESTRA_LIVE_DEVICE_ID ?? DEMO_MACHINE_PROFILES[0].deviceId;
     const profiles = process.env.MQTT_BROKER_URL
       ? DEMO_MACHINE_PROFILES.filter((profile) => profile.deviceId !== liveDeviceId)
@@ -243,34 +424,78 @@ class LiveTelemetryService {
       const index = DEMO_MACHINE_PROFILES.indexOf(profile);
       let runtime = this.syntheticRuntime.get(profile.deviceId);
       if (!runtime) {
-        const shiftLoadPieces = shiftLoadFor(sequence, index);
+        const shiftLoadPieces = this.state.simulation.productionOrder?.targetPieces ?? shiftLoadFor();
         runtime = {
-          health: profile.riskBias * 0.9,
+          health: profile.riskBias * 0.18,
+          serviceWear: 0,
+          maintenanceCount: 0,
           shiftId: `shift-${Math.floor(sequence / 40) + 1}`,
           shiftLoadPieces,
           piecesProduced: 0,
           piecesRemaining: shiftLoadPieces,
           cooldownTicks: 0,
+          pieceAccumulator: 0,
         };
         this.syntheticRuntime.set(profile.deviceId, runtime);
       }
-      const shiftLoadPieces = shiftLoadFor(sequence, index);
-      if (runtime.shiftLoadPieces !== shiftLoadPieces || runtime.piecesRemaining <= 0) {
+      const order = this.state.simulation.productionOrder;
+      const shiftLoadPieces = order?.targetPieces ?? shiftLoadFor();
+      if (runtime.shiftLoadPieces !== shiftLoadPieces || (order && runtime.shiftId !== order.shiftId)) {
         runtime.shiftLoadPieces = shiftLoadPieces;
-        runtime.shiftId = `shift-${Math.floor(sequence / 40) + 1}`;
-        runtime.piecesProduced = 0;
-        runtime.piecesRemaining = shiftLoadPieces;
+        runtime.shiftId = order?.shiftId ?? `shift-${Math.floor(sequence / 40) + 1}`;
       }
-      const capacity = Math.max(10, Math.round(shiftLoadPieces / 40 * (1 - runtime.health * 0.55)));
-      runtime.piecesProduced = Math.min(shiftLoadPieces, runtime.piecesProduced + capacity);
-      runtime.piecesRemaining = Math.max(0, shiftLoadPieces - runtime.piecesProduced);
+      if (order) {
+        runtime.piecesProduced = order.completedPieces;
+        runtime.piecesRemaining = order.remainingPieces;
+      }
       if (runtime.cooldownTicks > 0) runtime.cooldownTicks -= 1;
-      const loadFactor = shiftLoadPieces / 1000000;
-      const horizonTicks = this.state.simulation.failureHorizonMinutes * 60_000 / 2200;
+      const loadFactor = order ? 0.6 : 0.25;
+      const horizonTicks = this.state.simulation.failureHorizonMinutes * 60_000 / DEMO_TICK_MS;
       const degradationRate = (1 / horizonTicks) * (0.55 + loadFactor * 1.2) * (1 + runtime.health * 2.2);
-      runtime.health = Math.min(1, runtime.health + (runtime.cooldownTicks > 0 ? degradationRate * 0.12 : degradationRate));
+      if (runtime.cooldownTicks > 0) {
+        runtime.health = Math.max(runtime.serviceWear, runtime.health - 0.02);
+      } else {
+        runtime.health = Math.min(1, Math.max(runtime.serviceWear, runtime.health + degradationRate));
+      }
       return this.ingest(createDemoTelemetry(sequence, index, runtime), "demo");
     }));
+  }
+
+  private advanceProductionOrder() {
+    const order = this.state.simulation.productionOrder;
+    if (!order || order.status !== "running") return;
+    this.orderPieceAccumulator += order.fleetPiecesPerSecond * order.simulationSecondsPerTick;
+    const produced = Math.min(order.remainingPieces, Math.floor(this.orderPieceAccumulator));
+    if (produced <= 0) return;
+    this.orderPieceAccumulator -= produced;
+    const completedPieces = order.completedPieces + produced;
+    const remainingPieces = order.targetPieces - completedPieces;
+    let checkpointCount = this.state.simulation.checkpointCount;
+    let lastCheckpointPieces = order.lastCheckpointPieces;
+    let nextCheckpointPieces = order.nextCheckpointPieces;
+    let lastCheckpointAt = this.state.simulation.lastCheckpointAt;
+    while (completedPieces >= nextCheckpointPieces && nextCheckpointPieces <= order.targetPieces) {
+      checkpointCount += 1;
+      lastCheckpointPieces = nextCheckpointPieces;
+      nextCheckpointPieces = Math.min(order.targetPieces + 1, nextCheckpointPieces + order.checkpointEveryPieces);
+      lastCheckpointAt = now();
+    }
+    const shiftCapacity = Math.max(1, Math.floor(order.fleetPiecesPerSecond * order.shiftLengthMinutes * 60));
+    const shiftNumber = Math.floor(completedPieces / shiftCapacity) + 1;
+    const nextOrder: ProductionOrder = {
+      ...order,
+      completedPieces,
+      remainingPieces,
+      shiftId: `SHIFT-${String(shiftNumber).padStart(2, "0")}`,
+      lastCheckpointPieces,
+      nextCheckpointPieces,
+      status: remainingPieces <= 0 ? "completed" : "running",
+    };
+    this.state = {
+      ...this.state,
+      simulation: { ...this.state.simulation, productionOrder: nextOrder, checkpointCount, lastCheckpointAt },
+      updatedAt: now(),
+    };
   }
 
   private stopDemo() {
@@ -351,20 +576,30 @@ class LiveTelemetryService {
       const qualityFlags = [...modelInference.qualityFlags];
       const atypical = payload.data_quality === "atypical" || normalised.features.cooling_system_alarm > 0.5 || normalised.features.shielding_gas_flow_l_min < 10 || normalised.features.vibration_rms > 0.3;
       if (atypical && !qualityFlags.includes("Atypical telemetry · Agent 1 review")) qualityFlags.push("Atypical telemetry · Agent 1 review");
-      const adjustedUrgency = Math.max(modelInference.adjustedUrgency, source === "demo" ? Number(payload.simulated_risk ?? 0) * 100 : 0, atypical ? 72 : 0);
-      const humanReview = modelInference.humanReview || atypical;
       const syntheticRuntime = source === "demo" ? this.syntheticRuntime.get(normalised.deviceId) : undefined;
+      const rawAdjustedUrgency = Math.max(modelInference.adjustedUrgency, source === "demo" ? Number(payload.simulated_risk ?? 0) * 100 : 0, atypical ? 72 : 0);
+      const adjustedUrgency = smoothValue(previous?.urgency, rawAdjustedUrgency, 0.22, 4.2);
+      const predictedUrgency = smoothValue(previous?.current?.inference.predictedUrgency, modelInference.predictedUrgency, 0.22, 4.2);
+      const uncertainty = smoothValue(previous?.uncertainty, modelInference.uncertainty, 0.2, 0.035);
+      const processInstability = smoothValue(previous?.current?.inference.processInstability, modelInference.processInstability, 0.22, 0.04);
+      const humanReview = previous?.humanReview
+        ? adjustedUrgency >= 55 || uncertainty >= 0.30
+        : modelInference.humanReview || atypical || adjustedUrgency >= 70 || uncertainty >= 0.45;
       const operationalState = syntheticRuntime && syntheticRuntime.cooldownTicks === 0 && previous && ["maintenance_planned", "maintenance_hold", "stopped"].includes(previous.operationalState)
         ? "production"
         : undefined;
       const inference = {
         ...modelInference,
+        predictedUrgency,
         adjustedUrgency,
+        uncertainty,
+        processInstability,
         humanReview,
         label: adjustedUrgency > 70 ? "high" as const : adjustedUrgency > 40 ? "medium" as const : "low" as const,
         recommendation: adjustedUrgency >= 82 ? "urgent_intervention" as const : adjustedUrgency >= 65 || humanReview ? "inspect" as const : "do_nothing" as const,
         qualityFlags,
       };
+      const displayedFeatures = smoothFeatures(previous?.current?.features, normalised.features) as TelemetryRecord["features"];
       const record: TelemetryRecord = {
         id: randomUUID(),
         timestamp: normalised.timestamp,
@@ -373,9 +608,49 @@ class LiveTelemetryService {
         deviceId: normalised.deviceId,
         scenario: normalised.scenario,
         source,
-        features: normalised.features as TelemetryRecord["features"],
+        features: displayedFeatures,
         inference,
       };
+      const activeOrder = this.state.simulation.productionOrder;
+      const shiftId = String(activeOrder?.shiftId ?? payload.shift_id ?? previous?.shiftId ?? "live shift");
+      const shiftLoadPieces = Number(activeOrder?.targetPieces ?? payload.shift_load_pieces ?? previous?.shiftLoadPieces ?? 0);
+      const piecesProduced = Number(activeOrder?.completedPieces ?? payload.pieces_produced ?? previous?.piecesProduced ?? 0);
+      const piecesRemaining = Number(activeOrder?.remainingPieces ?? payload.pieces_remaining ?? previous?.piecesRemaining ?? 0);
+      const serviceWear = Math.min(1, Math.max(0, Number(payload.service_wear ?? syntheticRuntime?.serviceWear ?? previous?.serviceWear ?? 0)));
+      const maintenanceCount = Math.max(0, Math.round(Number(payload.maintenance_count ?? syntheticRuntime?.maintenanceCount ?? previous?.maintenanceCount ?? 0)));
+      const lifetimePercent = Math.max(0, Math.min(100, Number(payload.lifetime_percent ?? (100 - serviceWear * 100))));
+      const productionPlan = adjustedUrgency >= 82 || atypical
+        ? { maxAdditionalPieces: 0, reevaluateEveryPieces: 1, action: "stop_and_review" as const }
+        : adjustedUrgency >= 40
+          ? { maxAdditionalPieces: Math.min(piecesRemaining, this.state.simulation.productionOrder?.checkpointEveryPieces ?? 200), reevaluateEveryPieces: this.state.simulation.productionOrder?.checkpointEveryPieces ?? 200, action: "reduce_load" as const }
+          : { maxAdditionalPieces: Math.min(piecesRemaining, this.state.simulation.productionOrder?.checkpointEveryPieces ?? 1000), reevaluateEveryPieces: this.state.simulation.productionOrder?.checkpointEveryPieces ?? 1000, action: "continue" as const };
+      const traceTimestamp = record.receivedAt;
+      const agentTrace: AgentDecisionTrace[] = [
+        {
+          agent: "telemetry_quality",
+          label: "Agent 1 · Telemetry quality",
+          status: atypical ? "review" : "pass",
+          decision: atypical ? "Escalate frame" : "Accept frame",
+          detail: `${FEATURE_DEFINITIONS.length}/${FEATURE_DEFINITIONS.length} fields · ${source.toUpperCase()} · ${qualityFlags.length ? qualityFlags.join(" · ") : "no quality flags"}`,
+          timestamp: traceTimestamp,
+        },
+        {
+          agent: "predictive_inference",
+          label: "Agent 2 · Predictive risk",
+          status: humanReview ? "review" : "pass",
+          decision: `${inference.label.toUpperCase()} · ${inference.recommendation.replaceAll("_", " ")}`,
+          detail: `Adjusted urgency ${adjustedUrgency.toFixed(1)} · uncertainty ${(uncertainty * 100).toFixed(0)}% · ${inference.modelName}`,
+          timestamp: traceTimestamp,
+        },
+        {
+          agent: "shift_scheduler",
+          label: "Agent 3 · Shift scheduler",
+          status: productionPlan.action === "stop_and_review" ? "hold" : productionPlan.action === "reduce_load" ? "review" : "pass",
+          decision: productionPlan.action === "stop_and_review" ? "Stop at checkpoint" : productionPlan.action === "reduce_load" ? "Reduce load" : "Continue bounded order",
+          detail: `${shiftId} · ${piecesRemaining.toLocaleString()} remaining · checkpoint every ${productionPlan.reevaluateEveryPieces.toLocaleString()}`,
+          timestamp: traceTimestamp,
+        },
+      ];
       const machine: FleetMachine = {
         deviceId: record.deviceId,
         stationId: record.stationId,
@@ -396,17 +671,17 @@ class LiveTelemetryService {
         recommendation: inference.recommendation,
         humanReview: inference.humanReview,
         trend: [...(previous?.trend ?? []), inference.adjustedUrgency].slice(-16),
-        shiftId: String(payload.shift_id ?? previous?.shiftId ?? "live shift"),
-        shiftLoadPieces: Number(payload.shift_load_pieces ?? previous?.shiftLoadPieces ?? 0),
-        piecesProduced: Number(payload.pieces_produced ?? previous?.piecesProduced ?? 0),
-        piecesRemaining: Number(payload.pieces_remaining ?? previous?.piecesRemaining ?? 0),
+        shiftId,
+        shiftLoadPieces,
+        piecesProduced,
+        piecesRemaining,
         health: Number(payload.simulated_health ?? previous?.health ?? 0),
+        lifetimePercent,
+        maintenanceCount,
+        serviceWear,
         dataQuality: payload.data_quality === "atypical" || atypical ? "atypical" : "valid",
-        productionPlan: adjustedUrgency >= 82 || atypical
-          ? { maxAdditionalPieces: 0, reevaluateEveryPieces: 1, action: "stop_and_review" }
-          : adjustedUrgency >= 40
-            ? { maxAdditionalPieces: Math.min(Number(payload.pieces_remaining ?? 0), 2000), reevaluateEveryPieces: 200, action: "reduce_load" }
-            : { maxAdditionalPieces: Math.min(Number(payload.pieces_remaining ?? 0), 10000), reevaluateEveryPieces: 1000, action: "continue" },
+        agentTrace,
+        productionPlan,
       };
       const fleet = previous
         ? this.state.fleet.map((item) => item.deviceId === record.deviceId ? machine : item)
@@ -468,6 +743,7 @@ class LiveTelemetryService {
   }
 }
 
+/** Return the process-wide service instance used by all dashboard routes. */
 export function getLiveTelemetryService() {
   const globalScope = globalThis as typeof globalThis & { [GLOBAL_KEY]?: LiveTelemetryService };
   if (!globalScope[GLOBAL_KEY]) globalScope[GLOBAL_KEY] = new LiveTelemetryService();

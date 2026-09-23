@@ -1,3 +1,5 @@
+"""Budgeted simulated human-review routing for uncertain predictions."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -8,6 +10,7 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class ReviewDecision:
+    """One review outcome after routing and optional expert adjustment."""
     reviewed: bool
     reason: str
     adjusted_urgency: float
@@ -54,11 +57,13 @@ class HumanReviewRouter:
         self.rng = np.random.default_rng(seed)
 
     def priority_scores(self, frame: pd.DataFrame, predictions: np.ndarray, uncertainties: np.ndarray) -> np.ndarray:
+        """Score rows using uncertainty, observable conflict, and predicted risk."""
         conflict = frame.apply(_conflict_score, axis=1).to_numpy(dtype=float)
         high_risk = np.clip((np.asarray(predictions) - 55.0) / 45.0, 0, 1)
         return np.clip(0.58 * np.asarray(uncertainties) + 0.24 * conflict + 0.18 * high_risk, 0, 1)
 
     def route(self, frame: pd.DataFrame, predictions: np.ndarray, uncertainties: np.ndarray, mode: str) -> tuple[np.ndarray, np.ndarray]:
+        """Select reviewed rows for no-review, all-review, random, or uncertainty mode."""
         n = len(frame)
         if mode == "no_review":
             return np.zeros(n, dtype=bool), np.array(["not_reviewed"] * n, dtype=object)
@@ -93,6 +98,7 @@ class HumanReviewRouter:
         noise_std: float = 5.0,
         override_threshold: float = 7.5,
     ) -> pd.DataFrame:
+        """Apply the simulated expert signal while preserving the original prediction."""
         reviewed, reasons = self.route(frame, predictions, uncertainties, mode)
         adjusted: list[float] = []
         expert_estimates: list[float] = []
@@ -124,6 +130,7 @@ class HumanReviewRouter:
 
 
 def action_from_urgency(urgency: float, uncertainty: float = 0.0, *, full_review: bool = True) -> int:
+    """Map urgency and uncertainty to one of the five scheduling actions."""
     if urgency >= 84:
         return 4
     if full_review and uncertainty >= 0.72 and urgency >= 45:
@@ -138,6 +145,7 @@ def action_from_urgency(urgency: float, uncertainty: float = 0.0, *, full_review
 
 
 def review_metrics(frame: pd.DataFrame, high_risk_threshold: float = 70.0) -> dict[str, float]:
+    """Summarize review rate, overrides, high-risk recall, and risky decisions."""
     if frame.empty:
         return {"rows": 0, "review_rate": 0.0, "override_rate": 0.0, "high_risk_recall_before": 0.0, "high_risk_recall_after": 0.0, "risky_decisions": 0.0}
     true_high = frame["maintenance_urgency_score"].to_numpy(dtype=float) >= high_risk_threshold

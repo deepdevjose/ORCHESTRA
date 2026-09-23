@@ -1,3 +1,5 @@
+"""Seed-level confidence intervals and paired statistical summaries."""
+
 from __future__ import annotations
 
 from typing import Iterable
@@ -7,6 +9,7 @@ import pandas as pd
 
 
 def mean_ci(values: Iterable[float], confidence: float = 0.95) -> tuple[float, float, float]:
+    """Return mean and a Student-t confidence interval for independent values."""
     array = np.asarray(list(values), dtype=float)
     if len(array) == 0:
         return float("nan"), float("nan"), float("nan")
@@ -24,6 +27,7 @@ def mean_ci(values: Iterable[float], confidence: float = 0.95) -> tuple[float, f
 
 
 def aggregate_metrics(frame: pd.DataFrame, group_columns: list[str], metric_columns: list[str]) -> pd.DataFrame:
+    """Aggregate metrics by group and attach mean, CI95, and sample standard deviation."""
     rows: list[dict[str, object]] = []
     for keys, group in frame.groupby(group_columns, dropna=False):
         if not isinstance(keys, tuple):
@@ -40,6 +44,7 @@ def aggregate_metrics(frame: pd.DataFrame, group_columns: list[str], metric_colu
 
 
 def paired_test(frame: pd.DataFrame, metric: str, treatment: str, control: str, unit: str = "seed") -> dict[str, float | str]:
+    """Run a two-sided Wilcoxon test on treatment-control differences by unit."""
     pivot = frame.pivot_table(index=unit, columns="policy", values=metric, aggfunc="mean")
     if treatment not in pivot.columns or control not in pivot.columns:
         return {"metric": metric, "treatment": treatment, "control": control, "n": 0, "difference_mean": np.nan, "p_value": np.nan, "test": "unavailable"}
@@ -75,6 +80,7 @@ def bootstrap_difference_ci(
     samples: int = 2000,
     seed: int = 42,
 ) -> dict[str, float | int]:
+    """Bootstrap the paired treatment-control difference at the requested unit."""
     pivot = frame.pivot_table(index=unit, columns="policy", values=metric, aggfunc="mean")
     if treatment not in pivot.columns or control not in pivot.columns:
         return {"n": 0, "difference_mean": np.nan, "ci95_low": np.nan, "ci95_high": np.nan}

@@ -1,3 +1,5 @@
+"""Five-action maintenance scheduling environment and episode execution."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ from .schema import ACTION_NAMES, OBSERVATION_NAMES
 
 @dataclass(frozen=True)
 class StepOutcome:
+    """Operational outcome returned after one maintenance action."""
     reward: float
     downtime: float
     cost: float
@@ -23,7 +26,7 @@ class StepOutcome:
 
 
 class LaserWeldingSchedulingEnv:
-    """Dynamic five-action scheduling environment backed by latent trajectories."""
+    """Stateful scheduling environment backed by one case trajectory at a time."""
 
     def __init__(self, data: pd.DataFrame, reward_weights: dict[str, float], episode_length: int = 40, seed: int = 42, maintenance_delay: int = 0):
         if data.empty:
@@ -42,6 +45,7 @@ class LaserWeldingSchedulingEnv:
         self.deferred_steps = 0.0
 
     def reset(self, case_id: str | None = None, seed: int | None = None) -> np.ndarray:
+        """Select a case, reset episode counters, and return the initial state."""
         if seed is not None:
             self.rng = np.random.default_rng(seed)
         self.current_case = case_id or str(self.rng.choice(self.case_ids))
@@ -52,12 +56,14 @@ class LaserWeldingSchedulingEnv:
         return self.state()
 
     def current_row(self) -> pd.Series:
+        """Return the current trajectory row used for the next decision."""
         if self.case_frame.empty:
             self.reset()
         index = min(self.current_step, len(self.case_frame) - 1)
         return self.case_frame.iloc[index]
 
     def state(self) -> np.ndarray:
+        """Return the normalized seven-variable observation vector."""
         row = self.current_row()
         decision = float(row.get("orchestra_urgency", row.get("predicted_urgency", row["maintenance_urgency_score"])))
         uncertainty = float(row.get("uncertainty", 0.0))
@@ -73,6 +79,7 @@ class LaserWeldingSchedulingEnv:
 
     @staticmethod
     def evaluate_action(row: pd.Series, action: int, reward_weights: dict[str, float], maintenance_age: float = 0.0, deferred_steps: float = 0.0) -> StepOutcome:
+        """Evaluate one action without mutating the environment state."""
         if action not in ACTION_NAMES:
             raise ValueError(f"Unknown action: {action}")
         decision = float(row.get("orchestra_urgency", row.get("predicted_urgency", row["maintenance_urgency_score"])))
@@ -123,6 +130,7 @@ class LaserWeldingSchedulingEnv:
         )
 
     def step(self, action: int) -> tuple[np.ndarray, float, bool, dict[str, object]]:
+        """Apply an action and return next state, reward, completion, and trace info."""
         row = self.current_row()
         result = self.evaluate_action(row, int(action), self.reward_weights, self.maintenance_age, self.deferred_steps)
         if int(action) >= 2 and not result.resource_blocked:
@@ -149,6 +157,7 @@ class LaserWeldingSchedulingEnv:
 
 
 def run_episode(env: LaserWeldingSchedulingEnv, policy: Callable[[pd.Series], int], *, case_id: str, seed: int, policy_name: str) -> tuple[dict[str, float | int | str], pd.DataFrame]:
+    """Run one policy episode and return aggregate metrics plus its trace."""
     env.reset(case_id=case_id, seed=seed)
     trace: list[dict[str, object]] = []
     totals = {"reward": 0.0, "downtime": 0.0, "cost": 0.0, "failures": 0.0, "unnecessary": 0.0, "reviewed": 0.0, "resource_blocked": 0.0}
@@ -171,6 +180,7 @@ def run_episode(env: LaserWeldingSchedulingEnv, policy: Callable[[pd.Series], in
 
 
 def evaluate_policy(env: LaserWeldingSchedulingEnv, policy: Callable[[pd.Series], int], *, policy_name: str, episodes: int = 20, seed: int = 42) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Evaluate a policy over deterministic case/seed combinations."""
     summaries: list[dict[str, float | int | str]] = []
     traces: list[pd.DataFrame] = []
     for episode in range(episodes):
@@ -182,4 +192,5 @@ def evaluate_policy(env: LaserWeldingSchedulingEnv, policy: Callable[[pd.Series]
 
 
 def observation_names() -> tuple[str, ...]:
+    """Return the ordered names corresponding to the seven state variables."""
     return OBSERVATION_NAMES

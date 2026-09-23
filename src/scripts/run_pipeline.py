@@ -1,3 +1,5 @@
+"""Run the inherited ORCHESTRA pipeline and write its legacy result tables."""
+
 from __future__ import annotations
 
 import json
@@ -24,6 +26,7 @@ from orchestra_laser.urgency import add_maintenance_urgency
 
 
 def main() -> None:
+    """Generate data, fit the predictive agent, and run baseline studies."""
     paths = Paths()
     paths.ensure()
     config = load_config(paths.config)
@@ -86,4 +89,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

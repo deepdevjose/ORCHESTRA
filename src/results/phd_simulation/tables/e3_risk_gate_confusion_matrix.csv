@@ -1,0 +1,9 @@
+split,actual_high_risk,predicted_high_risk,count,threshold
+test,0,0,1240,70.0
+test,0,1,0,70.0
+test,1,0,0,70.0
+test,1,1,0,70.0
+ood,0,0,794,70.0
+ood,0,1,0,70.0
+ood,1,0,286,70.0
+ood,1,1,0,70.0

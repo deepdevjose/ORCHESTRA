@@ -1,3 +1,5 @@
+"""Seeded latent-process simulator and dataset validation helpers."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +13,7 @@ from .schema import FEATURE_COLUMNS, OOD_SCENARIOS, SCENARIOS
 
 @dataclass(frozen=True)
 class SimulatorOptions:
+    """Robustness knobs controlling sensor noise, missingness, drift, and delay."""
     sensor_noise: float = 0.018
     missing_modality_rate: float = 0.0
     concept_drift: float = 0.0
@@ -110,6 +113,7 @@ def _assign_case_splits(
 
 
 def validate_dataset(frame: pd.DataFrame) -> dict[str, object]:
+    """Return structural, finite-feature, scenario, split, and OOD checks."""
     missing_features = [column for column in FEATURE_COLUMNS if column not in frame.columns]
     missing_metadata = [column for column in ["case_id", "record_id", "scenario", "distribution", "split"] if column not in frame.columns]
     finite = bool(np.isfinite(frame[FEATURE_COLUMNS].to_numpy(dtype=float, na_value=np.nan)).all()) if not missing_features else False
@@ -294,6 +298,7 @@ def regenerate_with_condition(
     resource_availability_floor: float | None = None,
     maintenance_delay: int | None = None,
 ) -> pd.DataFrame:
+    """Regenerate a matched dataset under one named sensitivity condition."""
     """Regenerate a matched-size scenario under one robustness condition."""
 
     return generate_laser_dataset(

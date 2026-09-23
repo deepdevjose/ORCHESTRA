@@ -52,11 +52,11 @@ The frame also carries device identity, location, line, source, Wi-Fi RSSI, sign
 }
 ```
 
-Accepted actions are `acknowledge`, `inspect`, `hold_production`, `schedule_minor_maintenance`, `schedule_major_maintenance`, `urgent_intervention`, and `resume_production`. The firmware acknowledges the command and updates its local operational state; this prototype is not a certified safety controller.
+Accepted actions are `acknowledge`, `inspect`, `hold_production`, `schedule_minor_maintenance`, `schedule_major_maintenance`, `urgent_intervention`, `resume_production`, and `reset_lifetime`. The firmware acknowledges the command and updates its local operational state; this prototype is not a certified safety controller.
 
 ## Smoke test
 
-When `USE_SIMULATED_SENSORS` is enabled, the ESP32 also follows the factory simulation contract over MQTT. Each frame includes `shift_id`, `shift_load_pieces`, `pieces_produced`, `pieces_remaining`, `simulated_health`, `simulated_risk`, and `data_quality`. Health degrades progressively over a 60-minute horizon, faster for larger shifts and already-degraded machines. A maintenance command resets health and applies a short recovery period. With real sensors, the gateway still applies the same anomaly, urgency, bounded-work, and human-review rules to the measured values.
+When `USE_SIMULATED_SENSORS` is enabled, the ESP32 also follows the factory simulation contract over MQTT. Each frame includes `shift_id`, `shift_load_pieces`, `pieces_produced`, `pieces_remaining`, `simulated_health`, `simulated_risk`, `maintenance_count`, `service_wear`, `lifetime_percent`, and `data_quality`. Health degrades progressively over a 60-minute horizon, faster for larger shifts and already-degraded machines. A maintenance command restores operational health toward its post-service baseline but increments persistent service wear; `reset_lifetime` clears that wear and returns lifetime to 100%. With real sensors, the gateway still applies the same anomaly, urgency, bounded-work, and human-review rules to the measured values.
 
 ```bash
 mosquitto_sub -h <COMPUTER_IP_ON_AP> -p 1883 \
@@ -75,6 +75,6 @@ mosquitto_pub -h <COMPUTER_IP_ON_AP> -p 1883 \
   -m '{"action":"schedule_major_maintenance","operator":"operator","note":"Reset after inspection"}'
 ```
 
-The first command should change `scenario` in the next telemetry frames. The second should publish an acknowledgement on the status topic and restart the simulated health trajectory.
+The first command should change `scenario` in the next telemetry frames. The second should publish an acknowledgement on the status topic and restart the simulated health trajectory. The dashboard `reset_lifetime` command clears the maintenance counter and service wear on the ESP32 simulation and restores its lifetime to 100%; scheduled maintenance restores operating health toward its post-service baseline while increasing the persistent `service_wear` value.
 
 When MQTT is configured, the UI keeps robots 2-10 on the deterministic synthetic feed and reserves Robot 1 (`esp32-wroom32-laser-01`) for the ESP32 MQTT source. Without MQTT, all ten profiles remain a local fallback. See `simulation/README_WINDOWS.md` for the complete Windows setup.

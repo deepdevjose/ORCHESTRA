@@ -30,6 +30,8 @@ from orchestra_laser.urgency import add_maintenance_urgency
 
 
 class LiveModel:
+    """Load the repository predictor and human-review adapter for HTTP scoring."""
+
     def __init__(self) -> None:
         paths = Paths()
         config = load_config(paths.config)
@@ -53,6 +55,7 @@ class LiveModel:
         )
 
     def score(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Score one validated telemetry payload and return dashboard fields."""
         values = payload.get("features") if isinstance(payload.get("features"), dict) else payload
         row = {feature: values.get(feature) for feature in self.features}
         frame = clean_laser_welding_data(pd.DataFrame([row]), self.features)
@@ -101,6 +104,7 @@ MODEL_ERROR: str | None = None
 
 
 def get_model() -> LiveModel:
+    """Lazily construct and cache the live inference adapter."""
     global MODEL, MODEL_ERROR
     if MODEL is None:
         try:
@@ -112,6 +116,8 @@ def get_model() -> LiveModel:
 
 
 class Handler(BaseHTTPRequestHandler):
+    """Expose health and scoring endpoints for the local dashboard gateway."""
+
     def _send(self, status: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(status)
@@ -122,6 +128,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
+        """Serve model health information for the dashboard health check."""
         if self.path == "/health":
             try:
                 model = get_model()
@@ -132,6 +139,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self) -> None:  # noqa: N802
+        """Score a telemetry payload received at the ``/score`` endpoint."""
         if self.path != "/score":
             self._send(404, {"error": "not found"})
             return
@@ -143,10 +151,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send(422, {"error": str(exc)})
 
     def log_message(self, format: str, *args: Any) -> None:
+        """Keep the standard HTTP server log concise and clearly scoped."""
         print("[model]", format % args)
 
 
 def main() -> None:
+    """Start the local HTTP inference service on the requested port."""
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8787
     print(f"ORCHESTRA live inference service on http://127.0.0.1:{port}")
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

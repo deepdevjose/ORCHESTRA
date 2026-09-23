@@ -1,3 +1,10 @@
+"""Shared schema constants for the reproducible ORCHESTRA simulator.
+
+I keep feature names, action names, scenarios, and observation names in one
+module so the simulator, predictor, environment, dashboard exports, and audit
+checks use the same vocabulary.
+"""
+
 from __future__ import annotations
 
 from typing import Final

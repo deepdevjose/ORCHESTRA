@@ -4,6 +4,7 @@ function clamp(value: number, low: number, high: number) {
   return Math.min(high, Math.max(low, value));
 }
 
+/** Apply the documented local fallback when the Python inference service is unavailable. */
 export function fallbackInference(features: TelemetryFeatures): InferenceResult {
   const powerRisk = clamp(Math.abs(features.laser_power_w - 1800) / 360, 0, 1);
   const temperatureRisk = clamp(Math.abs(features.melt_pool_temp_c - 1450) / 260, 0, 1);
@@ -47,6 +48,7 @@ function extractFeatures(payload: TelemetryPayload): TelemetryFeatures {
   ) as TelemetryFeatures;
 }
 
+/** Send one frame to the Python model service and fall back locally on transport failure. */
 export async function scoreTelemetry(payload: TelemetryPayload): Promise<InferenceResult> {
   const features = extractFeatures(payload);
   const endpoint = process.env.ORCHESTRA_MODEL_URL ?? "http://127.0.0.1:8787/score";

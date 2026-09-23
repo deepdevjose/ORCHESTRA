@@ -1,3 +1,5 @@
+"""Command-line entry point for full and quick ORCHESTRA simulation runs."""
+
 from __future__ import annotations
 
 import argparse
@@ -16,6 +18,7 @@ else:
 
 
 def main() -> None:
+    """Parse CLI options, run the package, and print a compact JSON summary."""
     parser = argparse.ArgumentParser(description="Run the ORCHESTRA PhD-level simulation evidence package")
     parser.add_argument("--config", type=Path, default=None, help="Optional JSON configuration")
     parser.add_argument("--output-dir", type=Path, default=None, help="Override result directory")

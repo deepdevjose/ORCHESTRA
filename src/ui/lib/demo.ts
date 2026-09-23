@@ -42,7 +42,8 @@ function wave(index: number, frequency: number, amplitude: number, offset = 0) {
   return offset + Math.sin(index * frequency) * amplitude;
 }
 
-export function createDemoTelemetry(sequence: number, machineIndex = 0, runtime?: { health: number; shiftId: string; shiftLoadPieces: number; piecesProduced: number; piecesRemaining: number; cooldownTicks: number }): TelemetryPayload {
+/** Generate one deterministic synthetic telemetry frame for the selected cell. */
+export function createDemoTelemetry(sequence: number, machineIndex = 0, runtime?: { health: number; serviceWear: number; maintenanceCount: number; shiftId: string; shiftLoadPieces: number; piecesProduced: number; piecesRemaining: number; cooldownTicks: number }): TelemetryPayload {
   const profile = DEMO_MACHINE_PROFILES[machineIndex % DEMO_MACHINE_PROFILES.length];
   const phase = sequence / 3.5 + machineIndex * 0.37;
   const health = runtime?.health ?? profile.riskBias;
@@ -89,6 +90,9 @@ export function createDemoTelemetry(sequence: number, machineIndex = 0, runtime?
     shift_load_pieces: runtime?.shiftLoadPieces ?? 10000,
     pieces_produced: runtime?.piecesProduced ?? 0,
     pieces_remaining: runtime?.piecesRemaining ?? 10000,
+    maintenance_count: runtime?.maintenanceCount ?? 0,
+    service_wear: runtime?.serviceWear ?? 0,
+    lifetime_percent: 100 - (runtime?.serviceWear ?? 0) * 100,
     simulated_health: health,
     simulated_risk: degradation,
     data_quality: degradation >= 0.78 ? "atypical" : "valid",

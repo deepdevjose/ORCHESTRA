@@ -1,3 +1,8 @@
+// ORCHESTRA ESP32-WROOM-32 edge node.
+// This file publishes the 17-feature telemetry contract and accepts
+// human-in-the-loop commands. The simulated sensor path is for lab validation;
+// the generic ADC/GPIO path must be calibrated before any hardware study.
+
 #include <Arduino.h>
 #include <PubSubClient.h>
 #include <WiFi.h>
@@ -18,8 +23,11 @@ unsigned long shiftNumber = 1;
 unsigned long piecesProduced = 0;
 unsigned long shiftLoadPieces = 100000;
 float simulatedHealth = 0.0f;
+float serviceWear = 0.0f;
+unsigned int maintenanceCount = 0;
 unsigned int recoveryTicks = 0;
 
+// Connect to the isolated lab access point and start time synchronisation.
 void connectToWifi() {
   if (WiFi.status() == WL_CONNECTED) return;
 
@@ -42,6 +50,7 @@ void connectToWifi() {
   }
 }
 
+// Return an ISO-8601 UTC timestamp, or the epoch marker before NTP is ready.
 String isoTimestamp() {
   time_t now = time(nullptr);
   if (now < 100000) return String("1970-01-01T00:00:00.000Z");
@@ -53,15 +62,18 @@ String isoTimestamp() {
   return String(timestamp);
 }
 
+// Generate a deterministic bounded oscillation for simulated telemetry.
 float simulatedWave(float base, float amplitude, float frequency, float phase) {
   return base + sinf(phase * frequency) * amplitude;
 }
 
+// Map a 12-bit ADC reading into the configured engineering range.
 float analogValue(uint8_t pin, float minimum, float maximum) {
   const int raw = analogRead(pin);
   return minimum + (static_cast<float>(raw) / 4095.0f) * (maximum - minimum);
 }
 
+// Fill all seventeen process features from the simulator or wired sensors.
 void readTelemetry(float &laserPower, float &weldingSpeed, float &focalError,
                    float &shieldingGas, float &meltPoolTemp, float &backReflection,
                    float &plumeIntensity, float &spatterCount, float &vibration,
@@ -121,6 +133,7 @@ void readTelemetry(float &laserPower, float &weldingSpeed, float &focalError,
   hoursSinceCleaning = 24.0f;
 }
 
+// Serialize the current identity, shift, health, and process data into MQTT JSON.
 String telemetryJson() {
   float laserPower, weldingSpeed, focalError, shieldingGas, meltPoolTemp;
   float backReflection, plumeIntensity, spatterCount, vibration, robotPathError;
@@ -151,6 +164,9 @@ String telemetryJson() {
   payload += ",\"pieces_remaining\":" + String(shiftLoadPieces - piecesProduced);
   payload += ",\"simulated_health\":" + String(simulatedHealth, 4);
   payload += ",\"simulated_risk\":" + String(simulatedHealth, 4);
+  payload += ",\"maintenance_count\":" + String(maintenanceCount);
+  payload += ",\"service_wear\":" + String(serviceWear, 4);
+  payload += ",\"lifetime_percent\":" + String(fmaxf(0.0f, 100.0f - serviceWear * 100.0f), 2);
   payload += ",\"data_quality\":\"" + String(simulatedHealth >= 0.78f ? "atypical" : "valid") + "\"";
   payload += ",\"wifi_rssi_dbm\":" + String(WiFi.RSSI());
   payload += ",\"signal_quality\":" + String(USE_SIMULATED_SENSORS ? 0.98f : 0.75f, 2);
@@ -175,6 +191,7 @@ String telemetryJson() {
   return payload;
 }
 
+// Read a simple quoted string field from a small command payload.
 String jsonStringField(const String &json, const char *field) {
   const String key = String("\"") + field + "\"";
   const int keyIndex = json.indexOf(key);
@@ -188,7 +205,16 @@ String jsonStringField(const String &json, const char *field) {
   return json.substring(firstQuote + 1, secondQuote);
 }
 
+// Apply an operator action locally and update maintenance/lifetime state.
 bool applyCommand(const String &action) {
+  if (action == "reset_lifetime") {
+    operationalState = "production";
+    simulatedHealth = 0.0f;
+    serviceWear = 0.0f;
+    maintenanceCount = 0;
+    recoveryTicks = 0;
+    return true;
+  }
   if (action == "inspect") operationalState = "inspection";
   else if (action == "hold_production" || action == "schedule_major_maintenance") operationalState = "maintenance_hold";
   else if (action == "schedule_minor_maintenance") operationalState = "maintenance_planned";
@@ -197,12 +223,17 @@ bool applyCommand(const String &action) {
   else if (action == "acknowledge") return true;
   else return false;
   if (action == "schedule_minor_maintenance" || action == "schedule_major_maintenance" || action == "urgent_intervention") {
-    simulatedHealth = 0.03f;
+    if (action == "schedule_minor_maintenance" || action == "schedule_major_maintenance") {
+      maintenanceCount++;
+      serviceWear = fminf(0.45f, serviceWear + 0.04f);
+    }
+    simulatedHealth = fmaxf(0.02f, serviceWear);
     recoveryTicks = action == "schedule_minor_maintenance" ? 8 : 14;
   }
   return true;
 }
 
+// Parse scenario and operator commands received from the dashboard topic.
 void mqttMessageReceived(char *topic, byte *message, unsigned int length) {
   String command;
   command.reserve(length + 1);
@@ -229,6 +260,7 @@ void mqttMessageReceived(char *topic, byte *message, unsigned int length) {
   mqttClient.publish(MQTT_STATUS_TOPIC, acknowledgement.c_str(), false);
 }
 
+// Connect to MQTT, subscribe to commands, and publish retained online status.
 void connectToMqtt() {
   if (WiFi.status() != WL_CONNECTED || mqttClient.connected()) return;
 
@@ -248,6 +280,7 @@ void connectToMqtt() {
   }
 }
 
+// Advance the simulated production clock and publish one telemetry frame.
 void publishTelemetry() {
   if (!mqttClient.connected()) return;
   sequenceNumber++;
@@ -259,8 +292,12 @@ void publishTelemetry() {
   const float loadFactor = static_cast<float>(shiftLoadPieces) / 1000000.0f;
   const float horizonTicks = 60.0f * 60.0f / (static_cast<float>(TELEMETRY_INTERVAL_MS) / 1000.0f);
   const float degradation = (1.0f / horizonTicks) * (0.55f + loadFactor * 1.2f) * (1.0f + simulatedHealth * 2.2f);
-  simulatedHealth = fminf(1.0f, simulatedHealth + (recoveryTicks > 0 ? degradation * 0.12f : degradation));
-  if (recoveryTicks > 0) recoveryTicks--;
+  if (recoveryTicks > 0) {
+    simulatedHealth = fmaxf(serviceWear, simulatedHealth - 0.02f);
+    recoveryTicks--;
+  } else {
+    simulatedHealth = fminf(1.0f, fmaxf(serviceWear, simulatedHealth + degradation));
+  }
   piecesProduced = min(shiftLoadPieces, piecesProduced + max(10UL, shiftLoadPieces / 40UL));
   const String payload = telemetryJson();
   if (mqttClient.publish(MQTT_TELEMETRY_TOPIC, payload.c_str(), false)) {
@@ -273,6 +310,7 @@ void publishTelemetry() {
 }  // namespace
 
 void setup() {
+  // Configure serial diagnostics, sensor pins, MQTT, and the Wi-Fi connection.
   Serial.begin(115200);
   delay(300);
   Serial.println("\nORCHESTRA ESP32-WROOM-32 telemetry node");
@@ -286,6 +324,7 @@ void setup() {
 }
 
 void loop() {
+  // Keep connectivity alive and publish on the configured telemetry interval.
   if (WiFi.status() != WL_CONNECTED) connectToWifi();
   if (!mqttClient.connected()) connectToMqtt();
   mqttClient.loop();

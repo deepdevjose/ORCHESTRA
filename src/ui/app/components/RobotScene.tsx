@@ -28,7 +28,7 @@ export default function RobotScene() {
 
       const camera = new THREE.PerspectiveCamera(28, 1, 0.01, 1000);
       camera.position.set(4.6, 2.9, 5.8);
-      camera.lookAt(0, 1, 0);
+      camera.lookAt(0, 0.28, 0);
 
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -51,12 +51,12 @@ export default function RobotScene() {
         new THREE.MeshStandardMaterial({ color: 0xd7dee5, roughness: 0.94, metalness: 0.04 }),
       );
       floor.rotation.x = -Math.PI / 2;
-      floor.position.y = -0.04;
+      floor.position.y = -0.30;
       floor.receiveShadow = true;
       scene.add(floor);
 
       const grid = new THREE.GridHelper(7.5, 24, 0xb8c5d1, 0xd0d9e1);
-      grid.position.y = -0.02;
+      grid.position.y = -0.28;
       scene.add(grid);
 
       const dracoLoader = new DRACOLoader();
@@ -75,7 +75,7 @@ export default function RobotScene() {
           const scale = 3.3 / maxDimension;
           robot.scale.setScalar(scale);
           robot.position.sub(center.multiplyScalar(scale));
-          robot.position.y += 0.05;
+          robot.position.y += 0.18;
           robot.rotation.y = -0.58;
           robot.traverse((child) => {
             if (child instanceof THREE.Mesh) {

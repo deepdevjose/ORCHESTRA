@@ -1,3 +1,5 @@
+"""Hash-chain audit and directional counterfactual checks."""
+
 from __future__ import annotations
 
 import hashlib
@@ -39,6 +41,7 @@ def _canonical(value: object) -> object:
 
 
 def hash_trace(trace: pd.DataFrame) -> pd.DataFrame:
+    """Add deterministic chained hashes to a policy trace."""
     out = trace.copy()
     previous = "GENESIS"
     hashes: list[str] = []
@@ -53,6 +56,7 @@ def hash_trace(trace: pd.DataFrame) -> pd.DataFrame:
 
 
 def audit_report(trace: pd.DataFrame) -> dict[str, object]:
+    """Report trace completeness, action validity, uniqueness, and hash validity."""
     missing = [field for field in TRACE_FIELDS if field not in trace.columns]
     if missing:
         return {"rows": int(len(trace)), "complete_rows": 0, "completeness_rate": 0.0, "missing_fields": missing, "valid_action_domain": False, "hash_chain_valid": False}

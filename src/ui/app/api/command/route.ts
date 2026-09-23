@@ -12,8 +12,10 @@ const ACTIONS: DecisionAction[] = [
   "schedule_major_maintenance",
   "urgent_intervention",
   "resume_production",
+  "reset_lifetime",
 ];
 
+/** Validate an operator action and route it through the live service. */
 export async function POST(request: Request) {
   try {
     const body = await request.json() as Partial<{ deviceId: string; action: DecisionAction; operator: string; note: string }>;

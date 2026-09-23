@@ -1,3 +1,5 @@
+"""Stable-Baselines3 PPO adapter for the five-action scheduling environment."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,6 +12,7 @@ from .environment import LaserWeldingSchedulingEnv
 
 
 def make_gym_env(data: pd.DataFrame, reward_weights: dict[str, float], episode_length: int, seed: int):
+    """Wrap the research environment with the Gymnasium API expected by PPO."""
     try:
         import gymnasium as gym
         from gymnasium import spaces
@@ -26,14 +29,17 @@ def make_gym_env(data: pd.DataFrame, reward_weights: dict[str, float], episode_l
             self.action_space = spaces.Discrete(5)
 
         def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
+            """Reset the wrapped ORCHESTRA environment and return its observation."""
             super().reset(seed=seed)
             return self.core.reset(seed=seed), {}
 
         def step(self, action: int):
+            """Apply one discrete scheduling action using Gymnasium's return format."""
             observation, reward, done, info = self.core.step(int(action))
             return observation, float(reward), False, bool(done), info
 
         def render(self):
+            """Keep rendering optional because the research environment is headless."""
             return None
 
     return _GymEnv()
@@ -48,6 +54,7 @@ def train_ppo(
     total_timesteps: int,
     model_path: str | Path,
 ):
+    """Train, save, and return a CPU PPO policy for one evaluation seed."""
     try:
         from stable_baselines3 import PPO
     except Exception as exc:
@@ -75,13 +82,14 @@ def train_ppo(
 
 
 def evaluate_ppo(model, data: pd.DataFrame, *, reward_weights: dict[str, float], episode_length: int, seed: int, episodes: int = 20) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Evaluate a trained PPO model and return episode summaries plus traces."""
     env = LaserWeldingSchedulingEnv(data, reward_weights, episode_length=episode_length, seed=seed)
     summaries: list[dict[str, object]] = []
     traces: list[pd.DataFrame] = []
     for episode in range(episodes):
         case_id = env.case_ids[episode % len(env.case_ids)]
         env.reset(case_id=case_id, seed=seed + episode)
-        totals = {"policy": "ppo_trained", "seed": seed, "episode": episode, "case_id": case_id, "reward": 0.0, "downtime": 0.0, "cost": 0.0, "failures": 0.0, "unnecessary": 0.0}
+        totals = {"policy": "ppo_trained", "seed": seed, "episode": episode, "case_id": case_id, "reward": 0.0, "downtime": 0.0, "cost": 0.0, "failures": 0.0, "unnecessary": 0.0, "reviewed": 0.0, "resource_blocked": 0.0}
         events: list[dict[str, object]] = []
         done = False
         while not done:
@@ -95,6 +103,9 @@ def evaluate_ppo(model, data: pd.DataFrame, *, reward_weights: dict[str, float],
             totals["cost"] += float(info["cost"])
             totals["failures"] += float(info["failure"])
             totals["unnecessary"] += float(info["unnecessary"])
+            totals["reviewed"] += float(row.get("human_review_triggered", False))
+            totals["resource_blocked"] += float(info["resource_blocked"])
+        totals["steps"] = len(events)
         summaries.append(totals)
         traces.append(pd.DataFrame(events))
     return pd.DataFrame(summaries), pd.concat(traces, ignore_index=True) if traces else pd.DataFrame()

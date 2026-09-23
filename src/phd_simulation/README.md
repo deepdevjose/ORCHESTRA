@@ -1,34 +1,31 @@
-# Guía de reproducción de la simulación PhD de ORCHESTRA
+# ORCHESTRA PhD Simulation Reproduction Guide
 
-Esta carpeta contiene el paquete reproducible de simulación del plan de
-validación de cuatro semanas. La simulación es independiente del pipeline
-heredado de Week 1 para que la evidencia del artículo pueda ejecutarse sin
-modificar el notebook existente.
+I keep this folder as the reproducible simulation package for the four-week
+validation plan. It is independent of the inherited Week 1 pipeline so I can
+run the paper evidence without changing the original notebook or legacy
+outputs.
 
-## Requisitos
+## Requirements
 
-- Python 3.10 o posterior.
-- Git, para descargar el repositorio.
-- Conexión a Internet durante la instalación de las dependencias.
-- Aproximadamente 2 GB de espacio libre para dependencias y resultados.
+- Python 3.10 or later.
+- Git for checkout and provenance.
+- Internet access while installing dependencies.
+- Approximately 2 GB of free space for dependencies and generated results.
 
-No se necesita GPU. La ejecución completa puede tardar bastante más que la
-prueba rápida, especialmente durante el entrenamiento de PPO.
+I do not require a GPU. The full run takes substantially longer than the smoke
+run because it trains PPO for five evaluation seeds.
 
-## 1. Descargar el repositorio
-
-En los tres sistemas, abra una terminal y clone el repositorio:
+## 1. Clone and open the repository
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
+git clone <REPOSITORY_URL>
 cd ORCHESTRA
 ```
 
-Si ya tiene el repositorio, solo debe abrir una terminal en la carpeta raíz
-`ORCHESTRA`. Los comandos de esta guía deben ejecutarse desde esa carpeta, no
-desde `src/phd_simulation`.
+If I already have the repository, I open a terminal at the ORCHESTRA root. I
+run the commands in this guide from that root, not from `src/phd_simulation`.
 
-## 2. Preparar Python
+## 2. Create the Python environment
 
 ### Fedora
 
@@ -53,158 +50,185 @@ python -m pip install --upgrade pip
 python -m pip install -r src/phd_simulation/requirements.txt
 ```
 
-Si Ubuntu no ofrece Python 3.10 o posterior mediante sus paquetes actuales,
-instale una versión compatible antes de crear el entorno virtual.
+If the current Ubuntu packages do not provide Python 3.10 or later, I install
+a compatible version before creating the virtual environment.
 
 ### Windows PowerShell
 
-Instale Python desde <https://www.python.org/downloads/windows/> y active la
-opción **Add Python to PATH** durante la instalación. Después, en PowerShell:
+I install Python from <https://www.python.org/downloads/windows/> and enable
+**Add Python to PATH**. Then I run:
 
 ```powershell
 py --version
 py -3 -m venv .venv-phd
-.\.venv-phd\Scripts\Activate.ps1
+.\\.venv-phd\\Scripts\\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r src\phd_simulation\requirements.txt
+python -m pip install -r src\\phd_simulation\\requirements.txt
 ```
 
-Si PowerShell bloquea la activación del entorno, ejecute PowerShell como
-usuario y configure la política para su cuenta:
+If PowerShell blocks activation, I run PowerShell as the current user and use:
 
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
-También puede usar `cmd.exe` en lugar de PowerShell:
+I can also use `cmd.exe`:
 
 ```bat
 py -3 -m venv .venv-phd
-.venv-phd\Scripts\activate.bat
+.venv-phd\\Scripts\\activate.bat
 python -m pip install --upgrade pip
-python -m pip install -r src\phd_simulation\requirements.txt
+python -m pip install -r src\\phd_simulation\\requirements.txt
 ```
 
-## 3. Comprobar la instalación
+## 3. Run the smoke tests
 
-Con el entorno virtual activo, ejecute las pruebas unitarias pequeñas:
+With the virtual environment active, I run:
 
 ```bash
-python -m pytest src/phd_simulation/test_smoke.py
+python -m pytest src/phd_simulation/test_smoke.py -q
 ```
 
-En Windows puede usar exactamente el mismo comando desde PowerShell o
-`cmd.exe`. El resultado esperado es que las tres pruebas terminen con estado
+The expected result is three passing tests. These tests check seeded data
+reproducibility, OOD isolation, valid actions, finite rewards, and hash-chain
+reconstruction. They are execution checks, not the final paper evidence.
 
+## 4. Run the quick smoke experiment
 
-## 4. Ejecutar una prueba rápida
-
-La prueba rápida valida el flujo completo con menos datos y sin entrenar PPO.
-No debe usarse como evidencia final del artículo.
-
-Fedora y Ubuntu:
+The quick run validates the complete pipeline with fewer cases and no PPO. I
+use it to test installation and output paths, not as the final result.
 
 ```bash
 python src/phd_simulation/run.py --quick --skip-ppo --output-dir results/phd_simulation_smoke
 ```
 
-Windows PowerShell o `cmd.exe`:
+The command prints JSON with `status: completed` and writes outputs under
+`results/phd_simulation_smoke/`.
 
-```powershell
-python src\phd_simulation\run.py --quick --skip-ppo --output-dir results\phd_simulation_smoke
-```
+## 5. Reproduce the full Weeks 1–3 simulation
 
-La ejecución termina mostrando un JSON con `status: completed`. Los archivos
-se escriben en `results/phd_simulation_smoke/`.
-
-## 5. Reproducir la simulación completa
-
-Ejecute la configuración predeterminada:
-
-Fedora y Ubuntu:
+I run the default configuration with:
 
 ```bash
 python src/phd_simulation/run.py
 ```
 
-Windows PowerShell o `cmd.exe`:
-
-```powershell
-python src\phd_simulation\run.py
-```
-
-La configuración usa cinco semillas de evaluación, 180 casos y 40 pasos por
-episodio. PPO está habilitado por defecto. Para reproducir todos los análisis
-excepto el entrenamiento PPO:
+The default run uses five evaluation seeds, 180 cases, and 40 steps per
+episode. PPO is enabled. To run all analyses except PPO training, I use:
 
 ```bash
 python src/phd_simulation/run.py --skip-ppo
 ```
 
-En Windows, use la misma opción con barras invertidas en la ruta si utiliza
-una ruta de configuración explícita:
+The full Weeks 1–3 run writes:
+
+- `tables/e5_baseline_summary_ci95.csv`, including the homogeneous `ppo_trained` control.
+- `tables/e6_ablation_episode_metrics.csv` and `tables/e6_ablation_summary.csv`, with five seeds.
+- `tables/e7_sensitivity.csv` and `tables/e7_sensitivity_summary_ci95.csv`, with five seeds per condition.
+- `tables/e3_calibration_all_seeds.csv` and `tables/e3_calibration_summary_ci95.csv`.
+- `models/ppo_scheduler_seed_<seed>.zip`, one archive per PPO seed.
+- E1–E9 figures through the automatic `plot_results.py` call.
+- `resolved_config.json` and `manifest.json` with the effective configuration and output inventory.
+
+On Windows PowerShell I can use an explicit configuration path:
 
 ```powershell
-python src\phd_simulation\run.py --config src\phd_simulation\default_config.json
+python src\\phd_simulation\\run.py --config src\\phd_simulation\\default_config.json
 ```
 
-## 6. Revisar los resultados
+## 5.1 Generate the paper figures directly
 
-La salida predeterminada se guarda en:
-
-```text
-results/phd_simulation/
-```
-
-La carpeta contiene, entre otros elementos:
-
-- `manifest.json`: modo de ejecución, configuración y límites de las
-	afirmaciones reproducibles.
-- `resolved_config.json`: configuración efectiva de la corrida.
-- `data/`: datos simulados generados.
-- `figures/`: figuras producidas por los análisis.
-- `tables/`: tablas CSV para inspección o uso en el artículo.
-- `logs/`: resúmenes, trazas y comprobaciones de auditoría.
-- `models/`: modelos guardados cuando corresponde.
-
-Para ejecutar en otra carpeta, use `--output-dir`:
+I can regenerate all figures from the frozen CSV and JSON outputs without
+rerunning the experiment:
 
 ```bash
-python src/phd_simulation/run.py --output-dir results/phd_simulation_repeticion
+python -m src.phd_simulation.plot_results \
+  --results-dir src/results/phd_simulation
 ```
 
-## 7. Configuración y reproducibilidad
+The script writes fourteen figures to `src/results/phd_simulation/figures/`
+and writes `tables/e3_risk_gate_confusion_matrix.csv`.
 
-La configuración base está en
-`src/phd_simulation/default_config.json`. Se pueden modificar, por ejemplo,
-las semillas, el número de casos, el ruido de sensores y los pasos de PPO.
-Para conservar una corrida reproducible, guarde una copia de la configuración
-usada junto con sus resultados y no cambie las semillas.
+The confusion matrix is a derived risk-gate diagnostic. It thresholds the
+continuous regression target and prediction at 70, the high-risk threshold
+implemented in `review.py`. I do not describe it as a separately trained
+classifier.
 
-El paquete implementa un simulador sembrado de soldadura láser con trayectorias
-normales, degradadas y OOD; separación por casos para evitar fuga temporal;
-validación de modelos; calibración de incertidumbre; revisión humana; políticas
-de mantenimiento; análisis de sensibilidad y ablación; intervalos de confianza;
-pruebas pareadas; comprobaciones contrafactuales; y trazas de auditoría con
-hash encadenado.
+## 6. Review the archived results
 
-## Limitaciones
+The default output folder is:
 
-Toda la evidencia generada es únicamente de simulación. El simulador, el
-revisor experto y los objetivos del proceso son supuestos diseñados, no
-mediciones de hardware real ni un estudio real con operadores. Los resultados
-no constituyen validación industrial, certificación de seguridad ni prueba de
-despliegue en producción.
+```text
+src/results/phd_simulation/
+```
 
-## Desactivar el entorno virtual
+I use the following artifacts:
 
-Cuando termine:
+- `manifest.json`: execution mode, validation, audit, PPO status, figure status, supported claims, and output inventory.
+- `resolved_config.json`: the effective configuration written by the run.
+- `data/`: generated trajectories and model-ready exports.
+- `figures/`: paper-ready E1–E9 figures.
+- `tables/`: CSV tables for inspection and manuscript use.
+- `logs/`: audit reports, traces, counterfactuals, and calibration JSON.
+- `models/`: PPO model archives when PPO is enabled.
+
+To write a run to another folder, I use:
+
+```bash
+python src/phd_simulation/run.py --output-dir results/phd_simulation_repeat
+```
+
+## 7. Configuration and reproducibility
+
+The base configuration is [`default_config.json`](default_config.json), and
+the dataclass source is [`config.py`](config.py). I can change seeds, case
+counts, sensor noise, missing modalities, resource availability, reward
+weights, and PPO budgets there.
+
+For a reproducible paper run, I keep the effective configuration next to the
+results and preserve the seed list. The current package uses:
+
+- Base seed: `42`.
+- Evaluation seeds: `11, 22, 33, 44, 55`.
+- 180 cases with 40 cycles per episode.
+- Five grouped CV folds.
+- Review budget `0.25`.
+- 2,000 bootstrap samples.
+- PPO enabled for the full run.
+
+The package implements a seeded laser-welding latent simulator with normal,
+degraded, and OOD trajectories; case-level separation to prevent temporal
+leakage; model validation; uncertainty calibration; simulated human review;
+maintenance policies; sensitivity and ablation analysis; confidence
+intervals; paired tests; counterfactual checks; and hash-chained audit traces.
+
+In E6, `without_provenance` is a traceability ablation. Provenance is not
+currently used as a control feature, so an equal result means that the policy
+does not consume provenance for its action, not that provenance has no audit
+value. E5–E7 intervals are computed over seed means rather than individual
+cycles.
+
+## 8. Interpretation boundaries
+
+All evidence in this folder is simulation-only. The simulator, simulated
+expert reviewer, process objectives, and reward function are designed
+assumptions rather than real hardware measurements or a real operator study.
+The results are not industrial validation, safety certification, or proof of
+production deployment.
+
+The most defensible interpretation is that the package demonstrates an
+auditable research workflow and a simulated decision-support trade-off. It
+does not establish universal policy superiority, strong OOD generalisation,
+or a causal effect in a physical cell.
+
+## 9. Deactivate the environment
+
+When I finish a session, I run:
 
 ```bash
 deactivate
 ```
 
-En la siguiente sesión, vuelva a la raíz del repositorio y active el entorno
-con `source .venv-phd/bin/activate` en Fedora/Ubuntu o
-`.\.venv-phd\Scripts\Activate.ps1` en PowerShell antes de ejecutar la
-simulación.
+In a later session, I return to the repository root and activate the environment
+with `source .venv-phd/bin/activate` on Fedora/Ubuntu or
+`.\\.venv-phd\\Scripts\\Activate.ps1` on Windows PowerShell.

@@ -1,6 +1,8 @@
 ﻿# ORCHESTRA Laser Welding
 
-Research code for:
+I use [`Index.md`](Index.md) as the English map of the validation plan, source code, archived results, figures, traces, and delivery context.
+
+Research code and reproducible documentation for:
 
 **ORCHESTRA: A Human-Centred Multi-Agent Framework for Predictive Maintenance Scheduling in Laser Welding-Based Smart Manufacturing**
 
@@ -122,6 +124,9 @@ python src/phd_simulation/run.py
 ```
 
 The package records its evidence manifest and explicitly preserves the simulation-only limitation: it is not real hardware validation, a live operator study, safety certification, or proof of industrial deployment.
+
+For the English code-level contract, module responsibilities, data contracts,
+and reproducibility invariants, see [`src/phd_simulation/CODE_GUIDE.md`](src/phd_simulation/CODE_GUIDE.md). For the complete research map, see [`Index.md`](Index.md).
 
 
 ## Test XGBoost And PPO

@@ -1,3 +1,5 @@
+"""Typed configuration and JSON persistence for a research run."""
+
 from __future__ import annotations
 
 import json
@@ -51,12 +53,14 @@ class SimulationConfig:
     )
 
     def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-compatible representation of the effective config."""
         payload = asdict(self)
         payload["seeds"] = list(self.seeds)
         return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> "SimulationConfig":
+        """Build a configuration from a JSON-like mapping."""
         values = dict(payload)
         if "seeds" in values:
             values["seeds"] = tuple(int(seed) for seed in values["seeds"])
@@ -64,12 +68,14 @@ class SimulationConfig:
 
 
 def load_config(path: str | Path | None = None) -> SimulationConfig:
+    """Load the default or explicitly selected JSON configuration."""
     config_path = Path(path) if path else DEFAULT_CONFIG_PATH
     with config_path.open("r", encoding="utf-8") as handle:
         return SimulationConfig.from_dict(json.load(handle))
 
 
 def write_config(config: SimulationConfig, path: str | Path) -> None:
+    """Write the effective configuration and create its parent directory."""
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(config.to_dict(), indent=2) + "\n", encoding="utf-8")

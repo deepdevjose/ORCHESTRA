@@ -1,4 +1,6 @@
-﻿from __future__ import annotations
+﻿"""Train the inherited PPO scheduler on the legacy ORCHESTRA pipeline."""
+
+from __future__ import annotations
 
 import json
 import sys
@@ -19,6 +21,7 @@ from orchestra_laser.urgency import add_maintenance_urgency
 
 
 def build_orchestra_dataset(config: dict):
+    """Prepare the legacy labelled and review-enriched scheduling dataset."""
     df = load_or_create_dataset(config)
     df = clean_laser_welding_data(df, config["feature_columns"])
     df = add_maintenance_urgency(df)
@@ -36,6 +39,7 @@ def build_orchestra_dataset(config: dict):
 
 
 def main() -> None:
+    """Train and evaluate the legacy PPO model, then write its report."""
     try:
         from stable_baselines3 import PPO
     except Exception as exc:
