@@ -2,6 +2,8 @@
 
 Esta guia ejecuta el mismo stack hibrido que Windows: Robot 1 llega desde el ESP32 por MQTT y los robots 2-10 permanecen sinteticos en el gateway Next.js. El dashboard permite seleccionar cualquier robot en Model Observatory y enviar escenarios al Robot 1.
 
+Los robots sinteticos mantienen memoria de salud y simulan una fabrica: trabajan shifts de 1.000 a 1.000.000 de piezas, acumulan degradacion segun carga y salud, y los robots que empiezan mal empeoran mas rapido. El dashboard ordena las maquinas por urgencia y muestra un limite de piezas, una frecuencia de reevaluacion y una accion propuesta. El mantenimiento aprobado reinicia la salud y aplica un periodo corto de recuperacion.
+
 ## 1. Requisitos
 
 Necesitas Fedora actualizado, Node.js LTS, Git, Docker, Docker Compose, VS Code con PlatformIO, un ESP32-WROOM-32 y una red Wi-Fi de laboratorio. El PC y el ESP32 deben estar en la misma red privada.
@@ -91,7 +93,7 @@ Abre `http://localhost:3000`. Con MQTT configurado, Robot 1 queda reservado para
 ## 6. Configurar y cargar el ESP32
 
 ```bash
-cp src/firmware/include/config.example.h src/firmware/include/config.h
+cp src/firmware/include/config.example.h src/firmware/include/config.local.h
 ```
 
 Edita `src/firmware/include/config.h`:

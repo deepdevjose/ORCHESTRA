@@ -1,10 +1,10 @@
 # ORCHESTRA ESP32-WROOM-32 firmware
 
-This PlatformIO project is the edge-side contract for one laser-welding cell. It publishes the complete 17-feature ORCHESTRA telemetry frame and listens for human decisions from the dashboard. The repository contains safe placeholders only; add local Wi-Fi values to `include/config.h` before a lab build.
+This PlatformIO project is the edge-side contract for one laser-welding cell. It publishes the complete 17-feature ORCHESTRA telemetry frame and listens for human decisions from the dashboard. Keep Wi-Fi and broker credentials in the ignored `include/config.local.h` file before a lab build.
 
 ## Configure the isolated lab network
 
-1. Copy the values from `include/config.example.h` into `include/config.h`.
+1. Copy `include/config.example.h` to `include/config.local.h`.
 2. Set `WIFI_SSID` and `WIFI_PASSWORD` to the local access point values.
 3. Set `MQTT_BROKER_HOST` to the computer's IPv4 address on that access point. The dashboard itself can use `mqtt://127.0.0.1:1883` when Mosquitto runs on the same computer.
 4. Keep `USE_SIMULATED_SENSORS true` for the end-to-end smoke test. Set it to `false` only after the generic ADC/GPIO mappings and calibration ranges in `src/main.cpp` have been replaced with the actual sensor interface.
@@ -56,9 +56,25 @@ Accepted actions are `acknowledge`, `inspect`, `hold_production`, `schedule_mino
 
 ## Smoke test
 
+When `USE_SIMULATED_SENSORS` is enabled, the ESP32 also follows the factory simulation contract over MQTT. Each frame includes `shift_id`, `shift_load_pieces`, `pieces_produced`, `pieces_remaining`, `simulated_health`, `simulated_risk`, and `data_quality`. Health degrades progressively over a 60-minute horizon, faster for larger shifts and already-degraded machines. A maintenance command resets health and applies a short recovery period. With real sensors, the gateway still applies the same anomaly, urgency, bounded-work, and human-review rules to the measured values.
+
 ```bash
 mosquitto_sub -h <COMPUTER_IP_ON_AP> -p 1883 \
   -t 'orchestra/laser-welding/+/telemetry' -v
 ```
+
+To send the same commands used by the dashboard:
+
+```bash
+mosquitto_pub -h <COMPUTER_IP_ON_AP> -p 1883 \
+  -t 'orchestra/laser-welding/esp32-wroom32-laser-01/command' \
+  -m '{"command":"set_scenario","scenario":"focal_offset"}'
+
+mosquitto_pub -h <COMPUTER_IP_ON_AP> -p 1883 \
+  -t 'orchestra/laser-welding/esp32-wroom32-laser-01/command' \
+  -m '{"action":"schedule_major_maintenance","operator":"operator","note":"Reset after inspection"}'
+```
+
+The first command should change `scenario` in the next telemetry frames. The second should publish an acknowledgement on the status topic and restart the simulated health trajectory.
 
 When MQTT is configured, the UI keeps robots 2-10 on the deterministic synthetic feed and reserves Robot 1 (`esp32-wroom32-laser-01`) for the ESP32 MQTT source. Without MQTT, all ten profiles remain a local fallback. See `simulation/README_WINDOWS.md` for the complete Windows setup.

@@ -1,5 +1,9 @@
 #pragma once
 
+#if __has_include("config.local.h")
+#include "config.local.h"
+#else
+
 // Copy the values from your isolated lab network into this local file.
 // Never commit real Wi-Fi credentials to the repository.
 #define WIFI_SSID "YOUR_AP_SSID"
@@ -24,3 +28,4 @@
 // Set false after assigning the input pins and calibration ranges in main.cpp.
 #define USE_SIMULATED_SENSORS true
 #define TELEMETRY_INTERVAL_MS 2500UL
+#endif

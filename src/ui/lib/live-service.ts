@@ -12,6 +12,14 @@ import {
 } from "./types";
 
 type StateListener = (state: DashboardState) => void;
+type SyntheticRuntime = {
+  health: number;
+  shiftId: string;
+  shiftLoadPieces: number;
+  piecesProduced: number;
+  piecesRemaining: number;
+  cooldownTicks: number;
+};
 const GLOBAL_KEY = "__orchestra_live_service__";
 
 function now() {
@@ -43,7 +51,19 @@ function machineFromProfile(profile: (typeof DEMO_MACHINE_PROFILES)[number]): Fl
     recommendation: "do_nothing",
     humanReview: false,
     trend: [],
+    shiftId: "awaiting shift",
+    shiftLoadPieces: 0,
+    piecesProduced: 0,
+    piecesRemaining: 0,
+    health: 0,
+    dataQuality: "valid",
+    productionPlan: { maxAdditionalPieces: 0, reevaluateEveryPieces: 0, action: "stop_and_review" },
   };
+}
+
+function shiftLoadFor(sequence: number, machineIndex: number) {
+  const loads = [1000, 5000, 25000, 100000, 1000000];
+  return loads[(Math.floor(sequence / 40) + machineIndex) % loads.length];
 }
 
 class LiveTelemetryService {
@@ -52,6 +72,7 @@ class LiveTelemetryService {
   private demoTimer: NodeJS.Timeout | undefined;
   private demoSequence = 1;
   private mqttClient: MqttClient | undefined;
+  private syntheticRuntime = new Map<string, SyntheticRuntime>();
   private listeners = new Set<StateListener>();
   private state: DashboardState = {
     connection: "demo",
@@ -77,7 +98,7 @@ class LiveTelemetryService {
       reviewQueue: 0,
       modelEvents: [],
     },
-    simulation: { enabled: true, machineCount: DEMO_MACHINE_PROFILES.length - 1, label: "1 EDGE + 9 SYNTHETIC" },
+    simulation: { enabled: true, machineCount: DEMO_MACHINE_PROFILES.length - 1, label: "1 EDGE + 9 SYNTHETIC", failureHorizonMinutes: 60 },
     alerts: [],
     totals: { messages: 0, reviews: 0, overrides: 0, mqttMessages: 0 },
     updatedAt: now(),
@@ -119,6 +140,13 @@ class LiveTelemetryService {
               ? "production"
               : machine.operationalState;
     const connected = Boolean(this.mqttClient?.connected);
+    if (!connected && (action === "schedule_minor_maintenance" || action === "schedule_major_maintenance" || action === "urgent_intervention")) {
+      const runtime = this.syntheticRuntime.get(deviceId);
+      if (runtime) {
+        runtime.health = 0.03;
+        runtime.cooldownTicks = action === "schedule_minor_maintenance" ? 8 : 14;
+      }
+    }
     const decision = {
       id: randomUUID(),
       timestamp: now(),
@@ -175,6 +203,18 @@ class LiveTelemetryService {
     return this.state;
   }
 
+  setFailureHorizon(minutes: number) {
+    this.start();
+    const failureHorizonMinutes = Math.min(60, Math.max(5, Math.round(minutes)));
+    this.state = {
+      ...this.state,
+      simulation: { ...this.state.simulation, failureHorizonMinutes },
+      updatedAt: now(),
+    };
+    this.emit();
+    return this.state;
+  }
+
   private emit() {
     for (const listener of this.listeners) listener(this.state);
   }
@@ -201,7 +241,35 @@ class LiveTelemetryService {
       : DEMO_MACHINE_PROFILES;
     await Promise.all(profiles.map((profile) => {
       const index = DEMO_MACHINE_PROFILES.indexOf(profile);
-      return this.ingest(createDemoTelemetry(sequence, index), "demo");
+      let runtime = this.syntheticRuntime.get(profile.deviceId);
+      if (!runtime) {
+        const shiftLoadPieces = shiftLoadFor(sequence, index);
+        runtime = {
+          health: profile.riskBias * 0.9,
+          shiftId: `shift-${Math.floor(sequence / 40) + 1}`,
+          shiftLoadPieces,
+          piecesProduced: 0,
+          piecesRemaining: shiftLoadPieces,
+          cooldownTicks: 0,
+        };
+        this.syntheticRuntime.set(profile.deviceId, runtime);
+      }
+      const shiftLoadPieces = shiftLoadFor(sequence, index);
+      if (runtime.shiftLoadPieces !== shiftLoadPieces || runtime.piecesRemaining <= 0) {
+        runtime.shiftLoadPieces = shiftLoadPieces;
+        runtime.shiftId = `shift-${Math.floor(sequence / 40) + 1}`;
+        runtime.piecesProduced = 0;
+        runtime.piecesRemaining = shiftLoadPieces;
+      }
+      const capacity = Math.max(10, Math.round(shiftLoadPieces / 40 * (1 - runtime.health * 0.55)));
+      runtime.piecesProduced = Math.min(shiftLoadPieces, runtime.piecesProduced + capacity);
+      runtime.piecesRemaining = Math.max(0, shiftLoadPieces - runtime.piecesProduced);
+      if (runtime.cooldownTicks > 0) runtime.cooldownTicks -= 1;
+      const loadFactor = shiftLoadPieces / 1000000;
+      const horizonTicks = this.state.simulation.failureHorizonMinutes * 60_000 / 2200;
+      const degradationRate = (1 / horizonTicks) * (0.55 + loadFactor * 1.2) * (1 + runtime.health * 2.2);
+      runtime.health = Math.min(1, runtime.health + (runtime.cooldownTicks > 0 ? degradationRate * 0.12 : degradationRate));
+      return this.ingest(createDemoTelemetry(sequence, index, runtime), "demo");
     }));
   }
 
@@ -278,7 +346,25 @@ class LiveTelemetryService {
   private async ingest(payload: TelemetryPayload, source: "mqtt" | "demo") {
     try {
       const normalised = this.normalise(payload);
-      const inference = await scoreTelemetry({ ...payload, features: normalised.features });
+      const previous = this.state.fleet.find((item) => item.deviceId === normalised.deviceId);
+      const modelInference = await scoreTelemetry({ ...payload, features: normalised.features });
+      const qualityFlags = [...modelInference.qualityFlags];
+      const atypical = payload.data_quality === "atypical" || normalised.features.cooling_system_alarm > 0.5 || normalised.features.shielding_gas_flow_l_min < 10 || normalised.features.vibration_rms > 0.3;
+      if (atypical && !qualityFlags.includes("Atypical telemetry · Agent 1 review")) qualityFlags.push("Atypical telemetry · Agent 1 review");
+      const adjustedUrgency = Math.max(modelInference.adjustedUrgency, source === "demo" ? Number(payload.simulated_risk ?? 0) * 100 : 0, atypical ? 72 : 0);
+      const humanReview = modelInference.humanReview || atypical;
+      const syntheticRuntime = source === "demo" ? this.syntheticRuntime.get(normalised.deviceId) : undefined;
+      const operationalState = syntheticRuntime && syntheticRuntime.cooldownTicks === 0 && previous && ["maintenance_planned", "maintenance_hold", "stopped"].includes(previous.operationalState)
+        ? "production"
+        : undefined;
+      const inference = {
+        ...modelInference,
+        adjustedUrgency,
+        humanReview,
+        label: adjustedUrgency > 70 ? "high" as const : adjustedUrgency > 40 ? "medium" as const : "low" as const,
+        recommendation: adjustedUrgency >= 82 ? "urgent_intervention" as const : adjustedUrgency >= 65 || humanReview ? "inspect" as const : "do_nothing" as const,
+        qualityFlags,
+      };
       const record: TelemetryRecord = {
         id: randomUUID(),
         timestamp: normalised.timestamp,
@@ -290,7 +376,6 @@ class LiveTelemetryService {
         features: normalised.features as TelemetryRecord["features"],
         inference,
       };
-      const previous = this.state.fleet.find((item) => item.deviceId === record.deviceId);
       const machine: FleetMachine = {
         deviceId: record.deviceId,
         stationId: record.stationId,
@@ -298,7 +383,9 @@ class LiveTelemetryService {
         location: normalised.location,
         line: normalised.line,
         asset: previous?.asset ?? "SIASUN SR12A",
-        operationalState: previous?.operationalState ?? "production",
+        operationalState: source === "mqtt" && payload.operational_state
+          ? payload.operational_state
+          : operationalState ?? previous?.operationalState ?? "production",
         source,
         scenario: record.scenario,
         lastSeen: record.receivedAt,
@@ -309,6 +396,17 @@ class LiveTelemetryService {
         recommendation: inference.recommendation,
         humanReview: inference.humanReview,
         trend: [...(previous?.trend ?? []), inference.adjustedUrgency].slice(-16),
+        shiftId: String(payload.shift_id ?? previous?.shiftId ?? "live shift"),
+        shiftLoadPieces: Number(payload.shift_load_pieces ?? previous?.shiftLoadPieces ?? 0),
+        piecesProduced: Number(payload.pieces_produced ?? previous?.piecesProduced ?? 0),
+        piecesRemaining: Number(payload.pieces_remaining ?? previous?.piecesRemaining ?? 0),
+        health: Number(payload.simulated_health ?? previous?.health ?? 0),
+        dataQuality: payload.data_quality === "atypical" || atypical ? "atypical" : "valid",
+        productionPlan: adjustedUrgency >= 82 || atypical
+          ? { maxAdditionalPieces: 0, reevaluateEveryPieces: 1, action: "stop_and_review" }
+          : adjustedUrgency >= 40
+            ? { maxAdditionalPieces: Math.min(Number(payload.pieces_remaining ?? 0), 2000), reevaluateEveryPieces: 200, action: "reduce_load" }
+            : { maxAdditionalPieces: Math.min(Number(payload.pieces_remaining ?? 0), 10000), reevaluateEveryPieces: 1000, action: "continue" },
       };
       const fleet = previous
         ? this.state.fleet.map((item) => item.deviceId === record.deviceId ? machine : item)
@@ -322,7 +420,7 @@ class LiveTelemetryService {
         deviceId: record.deviceId,
         event: "Human review gate opened",
         detail: inference.qualityFlags.length ? inference.qualityFlags.join(" · ") : "Model uncertainty or urgency crossed the review threshold.",
-        level: inference.adjustedUrgency >= 82 ? "critical" as const : "warning" as const,
+        level: atypical || inference.adjustedUrgency >= 82 ? "critical" as const : "warning" as const,
       } : null;
       const alertLevel = levelFor(record);
       const newAlert = alertLevel === "info" ? [] : [{
@@ -330,7 +428,7 @@ class LiveTelemetryService {
         timestamp: record.timestamp,
         title: inference.humanReview ? "Human review requested" : "Maintenance risk elevated",
         detail: `${machine.name} · ${inference.qualityFlags.length ? inference.qualityFlags.join(" · ") : "Review the AI recommendation before scheduling."}`,
-        level: alertLevel,
+        level: atypical ? "critical" as const : alertLevel,
       }];
       const selected = fleet.find((item) => item.deviceId === this.state.selectedDeviceId);
       const elapsedMinutes = Math.max((Date.now() - this.startedAt) / 60000, 1 / 60);

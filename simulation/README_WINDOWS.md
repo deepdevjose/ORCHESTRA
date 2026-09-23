@@ -8,6 +8,8 @@ Este stack ejecuta un broker Mosquitto reproducible y conecta tres fuentes:
 
 El escenario enviado desde el panel de Operations solo se habilita para Robot 1. El ESP32 lo aplica a sus siguientes tramas: `normal`, `low_shielding_gas`, `lens_contamination`, `focal_offset`, `fixture_vibration` o `high_laser_power`.
 
+Los robots sinteticos mantienen memoria de salud y simulan una fabrica: trabajan shifts de 1.000 a 1.000.000 de piezas, acumulan degradacion segun carga y salud, y los robots que empiezan mal empeoran mas rapido. El dashboard ordena las maquinas por urgencia y muestra un limite de piezas, una frecuencia de reevaluacion y una accion propuesta. El mantenimiento aprobado reinicia la salud y aplica un periodo corto de recuperacion.
+
 ## 1. Requisitos
 
 Instala en Windows:
@@ -88,7 +90,7 @@ Abre `http://localhost:3000`. Antes de conectar el ESP32, los robots 2-10 aparec
 
 ## 5. Configurar y cargar el ESP32
 
-Copia `src/firmware/include/config.example.h` a `src/firmware/include/config.h` y edita:
+Copia `src/firmware/include/config.example.h` a `src/firmware/include/config.local.h` y edita:
 
 ```cpp
 #define WIFI_SSID "NOMBRE_DE_TU_WIFI"
@@ -148,5 +150,3 @@ Para ver logs del broker:
 ```powershell
 docker logs -f orchestra-mosquitto
 ```
-
-No guardes credenciales Wi-Fi en Git. Antes de usar este diseño fuera del laboratorio, configura autenticacion, ACL, TLS y una red industrial segmentada.

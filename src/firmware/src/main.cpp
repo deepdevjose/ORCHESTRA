@@ -14,6 +14,11 @@ unsigned long sequenceNumber = 0;
 bool commandSubscriptionReady = false;
 String operationalState = "production";
 String requestedScenario = "normal";
+unsigned long shiftNumber = 1;
+unsigned long piecesProduced = 0;
+unsigned long shiftLoadPieces = 100000;
+float simulatedHealth = 0.0f;
+unsigned int recoveryTicks = 0;
 
 void connectToWifi() {
   if (WiFi.status() == WL_CONNECTED) return;
@@ -66,29 +71,32 @@ void readTelemetry(float &laserPower, float &weldingSpeed, float &focalError,
   const float phase = static_cast<float>(sequenceNumber) * 0.32f;
 
   if (USE_SIMULATED_SENSORS) {
+    const float health = simulatedHealth;
     const float drift = fmodf(static_cast<float>(sequenceNumber), 24.0f) / 24.0f;
     const bool highLaserPower = requestedScenario == "high_laser_power";
     const bool lowGas = requestedScenario == "low_shielding_gas";
     const bool focalOffset = requestedScenario == "focal_offset";
     const bool vibrationScenario = requestedScenario == "fixture_vibration";
     const bool lensScenario = requestedScenario == "lens_contamination";
-    laserPower = simulatedWave(1800.0f + 120.0f * drift + (highLaserPower ? 280.0f : 0.0f), 45.0f, 0.6f, phase);
-    weldingSpeed = simulatedWave(35.0f, 1.7f, 0.45f, phase);
-    focalError = 0.08f + fabsf(sinf(phase * 0.55f)) * 0.04f + (focalOffset ? 0.28f : 0.0f);
-    shieldingGas = simulatedWave(18.0f - (lowGas ? 6.0f : 0.0f), 0.6f, 0.3f, phase);
-    meltPoolTemp = simulatedWave(1450.0f + 90.0f * drift + (highLaserPower ? 150.0f : 0.0f), 48.0f, 0.35f, phase);
-    backReflection = simulatedWave(0.34f + 0.08f * drift + (lensScenario ? 0.24f : 0.0f), 0.035f, 0.42f, phase);
-    plumeIntensity = simulatedWave(0.45f + 0.04f * drift + (lensScenario ? 0.13f : 0.0f), 0.04f, 0.37f, phase);
-    spatterCount = 3.0f + fmaxf(0.0f, roundf(sinf(phase * 0.7f) * 2.0f)) + (highLaserPower ? 5.0f : 0.0f);
-    vibration = 0.08f + fabsf(sinf(phase * 0.52f)) * 0.018f + (vibrationScenario ? 0.19f : 0.0f);
-    robotPathError = 0.05f + fabsf(sinf(phase * 0.41f)) * 0.015f + (vibrationScenario ? 0.13f : 0.0f);
-    beadWidth = simulatedWave(2.0f + (focalOffset ? 0.18f : 0.0f), 0.06f, 0.5f, phase);
-    beadHeight = simulatedWave(0.62f, 0.025f, 0.33f, phase);
-    porosityRisk = 0.12f + fabsf(sinf(phase * 0.28f)) * 0.025f + (lowGas ? 0.35f : 0.0f);
-    visualDefect = 8.0f + fmaxf(0.0f, sinf(phase * 0.27f) * 3.0f) + (focalOffset ? 18.0f : 0.0f);
-    lensContamination = 0.12f + fabsf(sinf(phase * 0.24f)) * 0.025f + (lensScenario ? 0.42f : 0.0f);
-    coolingAlarm = (sequenceNumber % 17UL == 0UL) ? 1.0f : 0.0f;
-    hoursSinceCleaning = 24.0f + static_cast<float>(sequenceNumber % 12UL) * 1.7f;
+    laserPower = simulatedWave(1800.0f + 120.0f * drift + (highLaserPower ? 280.0f : 0.0f) + 170.0f * health, 45.0f, 0.6f, phase);
+    weldingSpeed = simulatedWave(35.0f - 5.0f * health, 1.7f, 0.45f, phase);
+    focalError = 0.08f + fabsf(sinf(phase * 0.55f)) * 0.04f + (focalOffset ? 0.28f : 0.0f) + 0.34f * health;
+    shieldingGas = simulatedWave(18.0f - (lowGas ? 6.0f : 0.0f) - 4.5f * health, 0.6f, 0.3f, phase);
+    meltPoolTemp = simulatedWave(1450.0f + 90.0f * drift + (highLaserPower ? 150.0f : 0.0f) + 180.0f * health, 48.0f, 0.35f, phase);
+    backReflection = simulatedWave(0.34f + 0.08f * drift + (lensScenario ? 0.24f : 0.0f) + 0.25f * health, 0.035f, 0.42f, phase);
+    plumeIntensity = simulatedWave(0.45f + 0.04f * drift + (lensScenario ? 0.13f : 0.0f) + 0.16f * health, 0.04f, 0.37f, phase);
+    spatterCount = 3.0f + fmaxf(0.0f, roundf(sinf(phase * 0.7f) * 2.0f)) + (highLaserPower ? 5.0f : 0.0f) + roundf(12.0f * health);
+    vibration = 0.08f + fabsf(sinf(phase * 0.52f)) * 0.018f + (vibrationScenario ? 0.19f : 0.0f) + 0.24f * health;
+    robotPathError = 0.05f + fabsf(sinf(phase * 0.41f)) * 0.015f + (vibrationScenario ? 0.13f : 0.0f) + 0.18f * health;
+    beadWidth = simulatedWave(2.0f + (focalOffset ? 0.18f : 0.0f) + 0.22f * health, 0.06f, 0.5f, phase);
+    beadHeight = simulatedWave(0.62f - 0.08f * health, 0.025f, 0.33f, phase);
+    porosityRisk = fminf(1.0f, 0.12f + fabsf(sinf(phase * 0.28f)) * 0.025f + (lowGas ? 0.35f : 0.0f) + 0.55f * health);
+    visualDefect = 8.0f + fmaxf(0.0f, sinf(phase * 0.27f) * 3.0f) + (focalOffset ? 18.0f : 0.0f) + 45.0f * health;
+    lensContamination = fminf(1.0f, 0.12f + fabsf(sinf(phase * 0.24f)) * 0.025f + (lensScenario ? 0.42f : 0.0f) + 0.55f * health);
+    unsigned long alarmPeriod = 17UL - min(12UL, static_cast<unsigned long>(roundf(health * 12.0f)));
+    if (alarmPeriod < 3UL) alarmPeriod = 3UL;
+    coolingAlarm = (sequenceNumber % alarmPeriod == 0UL) ? 1.0f : 0.0f;
+    hoursSinceCleaning = 24.0f + static_cast<float>(sequenceNumber % 12UL) * 1.7f + 35.0f * health;
     return;
   }
 
@@ -137,6 +145,13 @@ String telemetryJson() {
   payload += ",\"source\":\"" + String(USE_SIMULATED_SENSORS ? "esp32_simulated" : "esp32_live_sensor") + "\"";
   payload += ",\"scenario\":\"" + (USE_SIMULATED_SENSORS ? requestedScenario : String("live_sensor")) + "\"";
   payload += ",\"operational_state\":\"" + operationalState + "\"";
+  payload += ",\"shift_id\":\"shift-" + String(shiftNumber) + "\"";
+  payload += ",\"shift_load_pieces\":" + String(shiftLoadPieces);
+  payload += ",\"pieces_produced\":" + String(piecesProduced);
+  payload += ",\"pieces_remaining\":" + String(shiftLoadPieces - piecesProduced);
+  payload += ",\"simulated_health\":" + String(simulatedHealth, 4);
+  payload += ",\"simulated_risk\":" + String(simulatedHealth, 4);
+  payload += ",\"data_quality\":\"" + String(simulatedHealth >= 0.78f ? "atypical" : "valid") + "\"";
   payload += ",\"wifi_rssi_dbm\":" + String(WiFi.RSSI());
   payload += ",\"signal_quality\":" + String(USE_SIMULATED_SENSORS ? 0.98f : 0.75f, 2);
   payload += ",\"laser_power_w\":" + String(laserPower, 2);
@@ -181,6 +196,10 @@ bool applyCommand(const String &action) {
   else if (action == "resume_production") operationalState = "production";
   else if (action == "acknowledge") return true;
   else return false;
+  if (action == "schedule_minor_maintenance" || action == "schedule_major_maintenance" || action == "urgent_intervention") {
+    simulatedHealth = 0.03f;
+    recoveryTicks = action == "schedule_minor_maintenance" ? 8 : 14;
+  }
   return true;
 }
 
@@ -232,6 +251,17 @@ void connectToMqtt() {
 void publishTelemetry() {
   if (!mqttClient.connected()) return;
   sequenceNumber++;
+  if (piecesProduced >= shiftLoadPieces) {
+    shiftNumber++;
+    piecesProduced = 0;
+    shiftLoadPieces = (shiftNumber % 5 == 0) ? 1000000UL : (shiftNumber % 3 == 0 ? 25000UL : 100000UL);
+  }
+  const float loadFactor = static_cast<float>(shiftLoadPieces) / 1000000.0f;
+  const float horizonTicks = 60.0f * 60.0f / (static_cast<float>(TELEMETRY_INTERVAL_MS) / 1000.0f);
+  const float degradation = (1.0f / horizonTicks) * (0.55f + loadFactor * 1.2f) * (1.0f + simulatedHealth * 2.2f);
+  simulatedHealth = fminf(1.0f, simulatedHealth + (recoveryTicks > 0 ? degradation * 0.12f : degradation));
+  if (recoveryTicks > 0) recoveryTicks--;
+  piecesProduced = min(shiftLoadPieces, piecesProduced + max(10UL, shiftLoadPieces / 40UL));
   const String payload = telemetryJson();
   if (mqttClient.publish(MQTT_TELEMETRY_TOPIC, payload.c_str(), false)) {
     Serial.printf("Published telemetry #%lu (%u bytes)\n", sequenceNumber, payload.length());
@@ -249,6 +279,7 @@ void setup() {
 
   analogReadResolution(12);
   pinMode(27, INPUT_PULLDOWN);
+  mqttClient.setBufferSize(1400);
   mqttClient.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
   mqttClient.setCallback(mqttMessageReceived);
   connectToWifi();

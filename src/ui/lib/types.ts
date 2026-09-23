@@ -30,6 +30,14 @@ export interface TelemetryPayload {
   line?: string;
   location?: string;
   features?: Record<string, number>;
+  shift_id?: string;
+  shift_load_pieces?: number;
+  pieces_produced?: number;
+  pieces_remaining?: number;
+  simulated_health?: number;
+  simulated_risk?: number;
+  data_quality?: "valid" | "atypical";
+  operational_state?: MachineOperationalState;
 }
 
 export type TelemetryFeatures = Record<FeatureKey, number>;
@@ -81,6 +89,17 @@ export interface FleetMachine {
   recommendation: InferenceResult["recommendation"];
   humanReview: boolean;
   trend: number[];
+  shiftId: string;
+  shiftLoadPieces: number;
+  piecesProduced: number;
+  piecesRemaining: number;
+  health: number;
+  dataQuality: "valid" | "atypical";
+  productionPlan: {
+    maxAdditionalPieces: number;
+    reevaluateEveryPieces: number;
+    action: "continue" | "reduce_load" | "stop_and_review";
+  };
 }
 
 export interface DecisionRecord {
@@ -136,6 +155,7 @@ export interface DashboardState {
     enabled: boolean;
     machineCount: number;
     label: string;
+    failureHorizonMinutes: number;
   };
   alerts: Array<{
     id: string;
