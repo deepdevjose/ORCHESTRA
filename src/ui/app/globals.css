@@ -147,3 +147,50 @@ h2 { font-size: 16px; font-weight: 600; letter-spacing: 0; margin-top: 7px; }
 @media (max-width: 1240px) { .industrial-content { padding: 28px 25px 22px; }.industrial-sidebar { flex-basis: 210px; }.fleet-command-layout { grid-template-columns: minmax(0, 1fr) 315px; }.industrial-lower-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.event-panel { grid-column: 1 / -1; } }
 @media (max-width: 920px) { .industrial-shell { display: block; }.industrial-sidebar { min-height: auto; padding: 16px 20px; }.sidebar-divider, .industrial-nav-label, .sidebar-context, .sidebar-foot { display: none; }.industrial-nav { display: flex; gap: 4px; margin-top: 15px; overflow-x: auto; }.industrial-nav a { white-space: nowrap; }.industrial-content { padding: 24px 18px 20px; }.industrial-topbar { display: block; }.industrial-top-actions { justify-content: space-between; margin-top: 18px; }.industrial-kpi-grid { grid-template-columns: repeat(3, 1fr); }.fleet-command-layout { grid-template-columns: 1fr; }.decision-rail { min-height: 0; }.model-registry-grid, .model-observatory-grid, .model-audit-layout { grid-template-columns: 1fr; }.simulation-control { align-items: stretch; grid-template-columns: 1fr; gap: 12px; }.simulation-control-note { white-space: normal; } }
 @media (max-width: 600px) { .industrial-topbar h1 { font-size: 29px; }.industrial-top-actions { align-items: stretch; flex-wrap: wrap; }.industrial-connection { flex: 1; }.industrial-command-strip { align-items: flex-start; flex-direction: column; gap: 12px; }.command-strip-meta { flex-wrap: wrap; gap: 8px 14px; }.industrial-kpi-grid { grid-template-columns: repeat(2, 1fr); }.industrial-kpi { min-height: 95px; padding: 13px; }.industrial-kpi > strong { font-size: 22px; }.section-heading { align-items: flex-start; display: block; }.section-meta { margin-top: 8px; }.fleet-grid { grid-template-columns: 1fr; }.industrial-lower-grid { grid-template-columns: 1fr; }.event-panel { grid-column: auto; }.model-matrix-panel { overflow-x: auto; }.model-matrix-head, .model-matrix-row { min-width: 720px; }.model-audit-layout { grid-template-columns: 1fr; }.industrial-footer { display: block; line-height: 1.6; }.industrial-footer span { display: block; margin-top: 5px; } }
+
+/* Keep the control room usable when its available width is narrower than a desktop grid. */
+.industrial-content, .industrial-topbar > div, .industrial-command-strip > div, .fleet-zone, .decision-rail, .industrial-panel { min-width: 0; }
+.industrial-topbar h1, .industrial-topbar p, .industrial-command-strip strong, .industrial-command-strip span, .decision-heading h2, .production-plan strong, .production-plan small, .recommendation-block strong, .recommendation-block p { overflow-wrap: anywhere; }
+.industrial-top-actions, .command-strip-meta, .industrial-panel-heading, .decision-heading, .decision-score, .fleet-card-title, .fleet-card-foot, .fleet-card-plan { min-width: 0; }
+.industrial-connection { min-width: 0; }
+
+@media (max-width: 1080px) {
+  .industrial-content { padding-left: 24px; padding-right: 24px; }
+  .industrial-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .industrial-topbar { gap: 20px; }
+  .industrial-top-actions { flex-wrap: wrap; justify-content: flex-end; }
+}
+
+@media (max-width: 760px) {
+  .industrial-content { padding: 20px 14px 18px; }
+  .industrial-topbar { display: block; }
+  .industrial-top-actions { justify-content: flex-start; margin-top: 16px; }
+  .simulation-pill, .industrial-connection { max-width: 100%; }
+  .industrial-command-strip { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .command-strip-meta { flex-wrap: wrap; gap: 8px 14px; }
+  .industrial-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .industrial-lower-grid { grid-template-columns: minmax(0, 1fr); }
+  .industrial-panel-heading { gap: 10px; }
+  .fleet-card-title { align-items: flex-start; }
+  .fleet-card-title > div:first-child, .fleet-card-foot { min-width: 0; }
+  .fleet-card-title strong, .fleet-card-title span, .fleet-card-foot { overflow-wrap: anywhere; }
+  .decision-score { align-items: flex-start; flex-wrap: wrap; }
+  .decision-score > div:last-child { min-width: 0; flex: 1 1 140px; }
+  .decision-button-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .industrial-footer { display: block; line-height: 1.6; }
+  .industrial-footer span { display: block; margin-top: 5px; }
+}
+
+@media (max-width: 420px) {
+  .industrial-top-actions { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .simulation-pill { grid-column: 1 / -1; }
+  .industrial-connection { width: 100%; }
+  .industrial-kpi-grid { grid-template-columns: minmax(0, 1fr); }
+  .industrial-kpi { min-height: 88px; }
+  .industrial-panel-heading { flex-direction: column; }
+  .asset-live-label, .schema-badge, .risk-label { align-self: flex-start; }
+  .industrial-sensor-row { grid-template-columns: minmax(0, 1fr) 52px 35px; }
+  .decision-button-grid { grid-template-columns: minmax(0, 1fr); }
+  .decision-button-grid .full { grid-column: auto; }
+  .selected-asset-panel .robot-scene { height: 210px; }
+}
