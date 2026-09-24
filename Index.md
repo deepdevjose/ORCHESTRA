@@ -147,7 +147,38 @@ high-risk rows that are not recovered by the thresholded prediction. I keep
 this figure because it makes the OOD limitation visible; I do not use it as a
 claim of classifier performance.
 
-## 4.2 How I justify the multi-agent framework
+## 4.2 Dashboard capture register
+
+The dashboard screenshots are retained as a chronological troubleshooting and
+demonstration record. Images 01–04 show the disconnected or synthetic
+fallback state. Images 05–10 show the same vertical after the ESP32 was
+reflashed onto the external Wi-Fi network and began publishing MQTT telemetry.
+The live group still uses `USE_SIMULATED_SENSORS=true`, so the transport and
+orchestration path is demonstrated with firmware-generated values rather than
+calibrated physical sensors.
+
+| Image | ESP32/MQTT state | What the image shows | Evidence interpretation |
+| --- | --- | --- | --- |
+| [`01_control_room_simulation.png`](dashboard_simulation_pictures/01_control_room_simulation.png) | **Not connected**; synthetic fallback, no Orion MQTT frames | First-run production-order setup, six-cell fleet context, SIASUN SR12A scene, and the 17-feature contract. | Records the initial simulation configuration and disconnected baseline. |
+| [`02_model_observatory_simulation.png`](dashboard_simulation_pictures/02_model_observatory_simulation.png) | **Not connected**; all visible machines are synthetic | Model Observatory with telemetry-quality, XGBoost predictive, and checkpoint-scheduler agents; urgency/uncertainty trace and fleet comparison. | Shows the model-laboratory fallback before physical MQTT was available. |
+| [`03_control_room_production_started.png`](dashboard_simulation_pictures/03_control_room_production_started.png) | **Not connected**; `0 FROM MQTT`, fleet marked `SIM` | Active order, checkpoint scheduler, fleet review queue, machine urgency cards, and operator-aware decision rail. | Demonstrates order-aware simulation behaviour without physical edge telemetry. |
+| [`04_model_observatory_human_decision_trace.png`](dashboard_simulation_pictures/04_model_observatory_human_decision_trace.png) | **Not connected**; synthetic decision record | Cell 04 review gate, three-agent trace, maintenance-hold state, and append-only simulated operator decision. | Demonstrates human-in-the-loop logic in the synthetic fallback. |
+| [`05_control_room_orion_mqtt_viewport.png`](dashboard_simulation_pictures/05_control_room_orion_mqtt_viewport.png) | **Connected**; Cell 01 identified as `MQTT` | Live control room with Cell 01 / ESP32 prototype, accepted frames, order progress, fleet urgency, and review status. | Live Wi-Fi/MQTT/dashboard integration evidence; not calibrated sensor validation. |
+| [`06_model_observatory_orion_mqtt.png`](dashboard_simulation_pictures/06_model_observatory_orion_mqtt.png) | **Connected**; MQTT source selected for Cell 01 | 17-feature telemetry quality, XGBoost inference, three-agent bounded trace, urgency/uncertainty chart, and gate activity. | Shows real telemetry transport entering the model and review loop. |
+| [`07_control_room_orion_process_view.png`](dashboard_simulation_pictures/07_control_room_orion_process_view.png) | **Connected**; `MQTT LIVE` | Cell 01 SIASUN SR12A view, 17 numeric process fields, MQTT gateway identity, and urgency trajectory. | Shows the end-to-end edge payload as rendered by the dashboard. |
+| [`08_control_room_orion_focal_offset_mqtt.png`](dashboard_simulation_pictures/08_control_room_orion_focal_offset_mqtt.png) | **Connected**; MQTT scenario command accepted | `focal_offset` response with Cell 01 risk increase, one high-risk fleet item, and review gate activation. | Demonstrates command-to-telemetry-to-decision propagation through the live demonstrator. |
+| [`09_model_observatory_orion_focal_offset.png`](dashboard_simulation_pictures/09_model_observatory_orion_focal_offset.png) | **Connected**; Cell 01 MQTT stream under `focal_offset` | Model-laboratory response with adjusted urgency, uncertainty, agent decisions, and live gate events. | Shows model observability for a controlled firmware-generated scenario. |
+| [`10_control_room_orion_focal_offset_process_view.png`](dashboard_simulation_pictures/10_control_room_orion_focal_offset_process_view.png) | **Connected**; `MQTT LIVE` | `Focal_offset`, focal-position error around 0.407 mm, bead-width change, process values, and review trajectory. | Paper-ready process detail for the integration demonstrator; not a physical calibration result. |
+
+The disconnected images are intentionally preserved: they document the
+failure mode that motivated the network reconfiguration and make the later
+MQTT-connected evidence auditable. The connected images demonstrate firmware
+upload, Wi-Fi association, MQTT publish/subscribe, gateway ingestion, model
+scoring, and human-review routing. They do not establish industrial
+deployment, sensor calibration, safety certification, causal superiority, or
+a real operator study.
+
+## 4.3 How I justify the multi-agent framework
 
 I do not conclude that ORCHESTRA always wins. I make the narrower and more
 defensible claim that the framework works as a simulated, auditable
@@ -430,10 +461,12 @@ pio run --target upload       # only with the board connected and lab approval
 pio device monitor
 ```
 
-I verified `pio run` in this checkout on 2026-09-23. A successful compile does
-not mean that I uploaded firmware, calibrated physical sensors, or completed a
-physical MQTT smoke test; those require the board, network, broker, and lab
-hardware.
+I verified `pio run` in this checkout on 2026-09-23. On 2026-09-24 I also
+verified `pio run --target upload --upload-port /dev/ttyUSB0` for the connected
+ESP32-D0WD-V3 board, Wi-Fi association on the external network, MQTT telemetry
+publish/subscribe, and dashboard ingestion. `USE_SIMULATED_SENSORS=true`
+remains enabled, so this is an edge-transport/integration smoke test rather
+than calibrated physical-sensor validation.
 
 ## 10. End-to-end demonstrator architecture
 
@@ -500,7 +533,8 @@ safety control.
 | `resolved_config.json` | **Verified:** effective configuration is archived with the results. |
 | `manifest.json` | **Verified:** validation, audit, PPO, figure status, supported claims, and output inventory are archived. |
 | E8 traces and counterfactuals | **Verified:** trace CSVs, hash-chain report, and counterfactual CSV are present. |
-| Firmware upload and physical ESP32/Mosquitto smoke | **Not executed in this checkout:** compile evidence is kept separate from hardware evidence. |
+| Firmware upload and physical ESP32/Mosquitto smoke | **Passed on 2026-09-24:** ESP32-D0WD-V3 upload, Wi-Fi IP `10.80.65.213`, broker `10.80.65.66:1883`, `orchestra.telemetry.v1`, `orchestra.command_ack.v1`, and Cell 01 dashboard source `mqtt`; sensor values remain firmware-simulated. |
+| Dashboard capture register | **Documented:** [`dashboard_simulation_pictures/`](dashboard_simulation_pictures/) maps disconnected fallback images 01–04 and MQTT-connected images 05–10, including the focal-offset scenario. |
 | Current paper draft | **Verified conversion:** four A4 pages; this is manuscript packaging context, not a new simulation result. |
 
 ## 13. Current delivery state
