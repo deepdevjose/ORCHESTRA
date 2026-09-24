@@ -1,0 +1,110 @@
+flowchart LR
+
+    subgraph CELL["Laser-welding cell / edge layer"]
+        ROBOT["SIASUN SR12A robot<br/>laser-welding cell"]
+        SENSORS["Process sensors<br/>17 telemetry features"]
+        ESP32["ESP32-WROOM-32<br/>edge node"]
+
+        ROBOT --> SENSORS
+        SENSORS -->|ADC/GPIO or simulated sensors| ESP32
+    end
+
+    subgraph NETWORK["Isolated lab / plant network"]
+        WIFI["Wi-Fi access point"]
+        MQTT["Mosquitto MQTT broker<br/>TCP 1883"]
+        TELEMETRY["orchestra/laser-welding/+/<br/>telemetry"]
+        COMMAND["orchestra/laser-welding/{device_id}/<br/>command"]
+        STATUS["orchestra/laser-welding/{device_id}/<br/>status"]
+
+        ESP32 <-->|Wi-Fi| WIFI
+        ESP32 -->|publish telemetry| TELEMETRY
+        TELEMETRY --> MQTT
+        MQTT -->|deliver telemetry| GATEWAY
+        GATEWAY -->|publish commands| COMMAND
+        COMMAND --> MQTT
+        MQTT -->|deliver commands| ESP32
+        ESP32 -->|publish online/offline/ack| STATUS
+        STATUS --> MQTT
+    end
+
+    subgraph ROS["ROS 3D simulation integration / external boundary"]
+        SERIAL["Serial link<br/>ESP32 ↔ ROS"]
+        TRANSLATOR["ROS JSON translator<br/>command JSON → simulation input"]
+        SIM3D["ROS 3D simulation<br/>6 machines: 1 ESP32-linked + 5 simulated"]
+
+        SERIAL --> TRANSLATOR
+        TRANSLATOR -->|translated maintenance/action input| SIM3D
+        SIM3D -->|machine stop/state event| TRANSLATOR
+    end
+
+    ESP32 -->|serial command JSON| SERIAL
+
+    subgraph LIVE["ORCHESTRA live application"]
+        BROWSER["Operator browser<br/>Next.js dashboard"]
+        GATEWAY["Next.js live gateway<br/>src/ui/lib/live-service.ts"]
+        VALIDATE["Normalize and validate<br/>17-feature contract"]
+        STATE["Live state<br/>fleet, alerts, decisions"]
+        SSE["GET /api/stream<br/>Server-Sent Events"]
+        API["REST control routes<br/>/api/command<br/>/api/scenario<br/>/api/simulation"]
+        MODEL_HTTP["HTTP model request<br/>POST /score"]
+        FALLBACK["TypeScript fallback inference<br/>when Python service is unavailable"]
+
+        BROWSER -->|EventSource| SSE
+        SSE -->|DashboardState stream| BROWSER
+        BROWSER -->|operator actions| API
+        API --> GATEWAY
+        GATEWAY --> VALIDATE
+        VALIDATE --> MODEL_HTTP
+        MODEL_HTTP -->|InferenceResult| STATE
+        VALIDATE --> STATE
+        GATEWAY --> STATE
+        STATE --> SSE
+        MODEL_HTTP -.->|transport failure| FALLBACK
+        FALLBACK --> STATE
+    end
+
+    subgraph MODEL["Live research-model bridge"]
+        PYTHON["Python HTTP service<br/>src/scripts/live_inference_service.py<br/>127.0.0.1:8787"]
+        AGENTS["PredictiveAgent<br/>urgency + uncertainty<br/>human-review logic"]
+        LIBRARY["src/src/orchestra_laser/<br/>preprocessing, urgency,<br/>predictive and human agents"]
+
+        PYTHON --> AGENTS
+        AGENTS --> LIBRARY
+        LIBRARY --> AGENTS
+        AGENTS -->|JSON inference result| PYTHON
+    end
+
+    MODEL_HTTP -->|HTTP POST /score| PYTHON
+    PYTHON -->|JSON prediction| MODEL_HTTP
+
+    subgraph OFFLINE["Offline simulation and validation"]
+        GENERATOR["Synthetic process trajectories<br/>17-feature schema"]
+        PREDICT["Model evaluation<br/>XGBoost, HGB, RF"]
+        REVIEW["HumanReviewRouter<br/>matched-budget review"]
+        SCHEDULER["Scheduling environment<br/>PPO and baselines"]
+        AUDIT["Audit traces<br/>counterfactuals + CI95"]
+        RESULTS["Archived artifacts<br/>src/results/phd_simulation/"]
+
+        GENERATOR --> PREDICT
+        PREDICT --> REVIEW
+        REVIEW --> SCHEDULER
+        SCHEDULER --> AUDIT
+        AUDIT --> RESULTS
+    end
+
+    OFFLINE -.->|offline evidence; not runtime traffic| PYTHON
+    RESULTS -.->|figures, tables and manifests| BROWSER
+
+    classDef edge fill:#E8F0FE,stroke:#2563EB,color:#172554,stroke-width:1.5px;
+    classDef transport fill:#ECFDF5,stroke:#059669,color:#064E3B,stroke-width:1.5px;
+    classDef app fill:#FFF7ED,stroke:#EA580C,color:#7C2D12,stroke-width:1.5px;
+    classDef model fill:#F5F3FF,stroke:#7C3AED,color:#3B0764,stroke-width:1.5px;
+    classDef offline fill:#F8FAFC,stroke:#64748B,color:#1E293B,stroke-width:1.5px;
+    classDef ros fill:#FEF2F2,stroke:#DC2626,color:#7F1D1D,stroke-width:1.5px;
+
+    class ROBOT,SENSORS,ESP32 edge;
+    class WIFI,MQTT,TELEMETRY,COMMAND,STATUS transport;
+    class BROWSER,GATEWAY,VALIDATE,STATE,SSE,API,MODEL_HTTP,FALLBACK app;
+    class PYTHON,AGENTS,LIBRARY model;
+    class GENERATOR,PREDICT,REVIEW,SCHEDULER,AUDIT,RESULTS offline;
+    class SERIAL,TRANSLATOR,SIM3D ros;

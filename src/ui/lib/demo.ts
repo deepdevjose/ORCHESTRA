@@ -12,9 +12,9 @@ export interface DemoMachineProfile {
 }
 
 /**
- * Deterministic fleet used when no MQTT broker is configured. It is intentionally
- * labelled as synthetic in the UI: it exercises the complete data contract and
- * the human-review workflow, but is not evidence from a production cell.
+ * Deterministic six-cell fleet used when no MQTT broker is configured. Cell 01
+ * is reserved for the ESP32/MQTT edge path; cells 02-06 are synthetic fallback
+ * streams for the five remaining machines in the 3D simulation.
  */
 export const DEMO_MACHINE_PROFILES: DemoMachineProfile[] = [
   { deviceId: "esp32-wroom32-laser-01", stationId: "CN-SUZHOU-LW-01", name: "Cell 01 · Orion", location: "Suzhou · Jiangsu", line: "Battery enclosure A", asset: "SIASUN SR12A", scenarioOffset: 0, riskBias: 0.00 },
@@ -23,11 +23,11 @@ export const DEMO_MACHINE_PROFILES: DemoMachineProfile[] = [
   { deviceId: "esp32-sim-04", stationId: "CN-SHANGHAI-LW-04", name: "Cell 04 · Polaris", location: "Shanghai · Pudong", line: "Battery enclosure B", asset: "SIASUN SR12A", scenarioOffset: 3, riskBias: 0.22 },
   { deviceId: "esp32-sim-05", stationId: "CN-WUXI-LW-05", name: "Cell 05 · Sirius", location: "Wuxi · Jiangsu", line: "Thermal shield C", asset: "SIASUN SR12A", scenarioOffset: 4, riskBias: 0.04 },
   { deviceId: "esp32-sim-06", stationId: "CN-WUXI-LW-06", name: "Cell 06 · Lyra", location: "Wuxi · Jiangsu", line: "Thermal shield C", asset: "SIASUN SR12A", scenarioOffset: 5, riskBias: 0.12 },
-  { deviceId: "esp32-sim-07", stationId: "KR-SEOUL-LW-07", name: "Cell 07 · Hanul", location: "Seoul · Gyeonggi", line: "Structural seam D", asset: "SIASUN SR12A", scenarioOffset: 0, riskBias: 0.18 },
-  { deviceId: "esp32-sim-08", stationId: "KR-SEOUL-LW-08", name: "Cell 08 · Nuri", location: "Seoul · Gyeonggi", line: "Structural seam D", asset: "SIASUN SR12A", scenarioOffset: 2, riskBias: 0.28 },
-  { deviceId: "esp32-sim-09", stationId: "CN-SUZHOU-LW-09", name: "Cell 09 · Jade", location: "Suzhou · Jiangsu", line: "Final inspection E", asset: "SIASUN SR12A", scenarioOffset: 4, riskBias: 0.34 },
-  { deviceId: "esp32-sim-10", stationId: "CN-SHANGHAI-LW-10", name: "Cell 10 · Meridian", location: "Shanghai · Pudong", line: "Final inspection E", asset: "SIASUN SR12A", scenarioOffset: 1, riskBias: 0.42 },
 ];
+
+export const EDGE_MACHINE_COUNT = 1;
+export const TOTAL_MACHINE_COUNT = DEMO_MACHINE_PROFILES.length;
+export const SYNTHETIC_MACHINE_COUNT = TOTAL_MACHINE_COUNT - EDGE_MACHINE_COUNT;
 
 const scenarioNames = [
   "normal",

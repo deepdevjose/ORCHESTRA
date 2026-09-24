@@ -1,7 +1,7 @@
 # ORCHESTRA hybrid simulation on Fedora
 
 I use this guide to run the same hybrid stack as Windows: Robot 1 can arrive
-from an ESP32 through MQTT, while robots 2–10 remain synthetic in the Next.js
+from an ESP32 through MQTT, while robots 2–6 remain synthetic in the Next.js
 gateway. The dashboard exposes production orders, shifts, checkpoints,
 maintenance, model traces, and simulation reset controls.
 
@@ -38,7 +38,7 @@ npm install
 npm run dev:stack
 ```
 
-7. Open `http://localhost:3000`. Robot 1 should report `MQTT`; robots 2–10
+7. Open `http://localhost:3000`. Robot 1 should report `MQTT`; robots 2–6
    should report `SIM`.
 
 ## Requirements and installation

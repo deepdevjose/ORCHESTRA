@@ -77,4 +77,4 @@ mosquitto_pub -h <COMPUTER_IP_ON_AP> -p 1883 \
 
 The first command should change `scenario` in the next telemetry frames. The second should publish an acknowledgement on the status topic and restart the simulated health trajectory. The dashboard `reset_lifetime` command clears the maintenance counter and service wear on the ESP32 simulation and restores its lifetime to 100%; scheduled maintenance restores operating health toward its post-service baseline while increasing the persistent `service_wear` value.
 
-When MQTT is configured, the UI keeps robots 2-10 on the deterministic synthetic feed and reserves Robot 1 (`esp32-wroom32-laser-01`) for the ESP32 MQTT source. Without MQTT, all ten profiles remain a local fallback. See `simulation/README_WINDOWS.md` for the complete Windows setup.
+When MQTT is configured, the UI keeps robots 2-6 on the deterministic synthetic feed and reserves Robot 1 (`esp32-wroom32-laser-01`) for the ESP32 MQTT source. Without MQTT, all six profiles remain a local fallback. See `simulation/README_WINDOWS.md` for the complete Windows setup.

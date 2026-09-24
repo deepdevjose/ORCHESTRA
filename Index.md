@@ -60,18 +60,18 @@ I can support these statements from the archived run:
 ## 2.1 Production capacity assumption used by the dashboard
 
 I use production capacity as a configurable planning assumption, not as a
-measurement of the SIASUN arm. The dashboard models ten independent cells that
+measurement of the SIASUN arm. The dashboard models six independent cells that
 can work in parallel:
 
 | Reference or assumption | Value | Use in the demonstrator |
 | --- | ---: | --- |
 | ABB/GAC body-in-white reference | 46 s per body | Order-of-magnitude reference for an integrated automotive line ([ABB source](https://www.abb.com/global/en/areas/robotics/industries/automotive)) |
 | ABB/KWD welded component reference | 37 s per component | Order-of-magnitude reference for a component cell ([ABB case](https://destination-zukunft.abb.com/robotik/automobilteile-im-sekundentakt/)) |
-| ORCHESTRA conservative assumption | 60 s per piece and cell | Ten cells × 1/60 = **0.167 pieces/s**, 10 pieces/min, or 600 pieces/h nominally |
+| ORCHESTRA conservative assumption | 60 s per piece and cell | Six cells × 1/60 = **0.100 pieces/s**, 6 pieces/min, or 360 pieces/h nominally |
 
-The tenfold multiplication is valid only when each arm/cell makes an
-independent piece. If ten arms share one vehicle body, the line takt determines
-the throughput and I must not multiply it by ten. The dashboard makes this
+The sixfold multiplication is valid only when each arm/cell makes an
+independent piece. If six arms share one vehicle body, the line takt determines
+the throughput and I must not multiply it by six. The dashboard makes this
 assumption visible and uses an accelerated clock of ten simulated seconds per
 tick so I can observe orders and checkpoints during a demonstration.
 
@@ -268,7 +268,7 @@ cross-module behaviour and output provenance.
 | [`src/ui/app/components/RobotScene.tsx`](src/ui/app/components/RobotScene.tsx) | Local Three.js SIASUN SR12A scene with a lowered floor, lifted model, local Draco decoder, and responsive resize. |
 | [`src/ui/lib/types.ts`](src/ui/lib/types.ts) | TypeScript contracts for telemetry, production orders, agent traces, decisions, fleet machines, and dashboard state. |
 | [`src/ui/lib/live-service.ts`](src/ui/lib/live-service.ts) | MQTT plus synthetic feed, smoothing, order/checkpoint progression, maintenance wear, lifetime reset, inference, and agent decisions. |
-| [`src/ui/lib/demo.ts`](src/ui/lib/demo.ts) | Deterministic ten-cell fallback feed when MQTT is unavailable. |
+| [`src/ui/lib/demo.ts`](src/ui/lib/demo.ts) | Deterministic six-cell fallback feed: one reserved ESP32 edge slot plus five synthetic streams. |
 | [`src/ui/lib/model-client.ts`](src/ui/lib/model-client.ts) | HTTP call to the Predictive Agent bridge with fallback scoring. |
 | [`src/ui/app/api/stream/route.ts`](src/ui/app/api/stream/route.ts) | Server-sent event stream for dashboard telemetry and decisions. |
 | [`src/ui/app/api/state/route.ts`](src/ui/app/api/state/route.ts) | Current dashboard state endpoint. |

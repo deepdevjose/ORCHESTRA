@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import mqtt, { MqttClient } from "mqtt";
-import { createDemoTelemetry, DEMO_MACHINE_PROFILES } from "./demo";
+import { createDemoTelemetry, DEMO_MACHINE_PROFILES, SYNTHETIC_MACHINE_COUNT } from "./demo";
 import { scoreTelemetry } from "./model-client";
 import {
   AgentDecisionTrace,
@@ -133,8 +133,8 @@ class LiveTelemetryService {
     },
     simulation: {
       enabled: true,
-      machineCount: DEMO_MACHINE_PROFILES.length - 1,
-      label: "1 EDGE + 9 SYNTHETIC",
+      machineCount: SYNTHETIC_MACHINE_COUNT,
+      label: "1 EDGE + 5 SYNTHETIC",
       failureHorizonMinutes: 60,
       productionOrder: null,
       checkpointCount: 0,
@@ -191,7 +191,7 @@ class LiveTelemetryService {
       cycleTimeSecondsPerCell: CYCLE_TIME_SECONDS_PER_CELL,
       simulationSecondsPerTick: SIMULATION_SECONDS_PER_TICK,
       status: "running",
-      assumption: "10 independent cells × 1 chassis / 60 s; accelerated clock: 10 simulated seconds per dashboard tick.",
+      assumption: "6 independent cells × 1 chassis / 60 s; accelerated clock: 10 simulated seconds per dashboard tick.",
     };
     this.orderPieceAccumulator = 0;
     this.syntheticRuntime.clear();
@@ -407,7 +407,7 @@ class LiveTelemetryService {
     this.setConnection(process.env.MQTT_BROKER_URL ? "connecting" : "demo");
     void this.ingestDemoBatch();
     this.demoTimer = setInterval(() => {
-      // Keep the nine synthetic cells running even when the first ESP32 cell is
+      // Keep the five synthetic cells running even when the first ESP32 cell is
       // connected. The dashboard is intentionally a mixed edge + lab fleet.
       void this.ingestDemoBatch();
     }, DEMO_TICK_MS);
@@ -727,7 +727,7 @@ class LiveTelemetryService {
           reviewQueue: currentFleet.filter((item) => item.humanReview && item.operationalState === "production").length,
           modelEvents: modelEvent ? [modelEvent, ...this.state.modelTelemetry.modelEvents].slice(0, 20) : this.state.modelTelemetry.modelEvents,
         },
-        simulation: { ...this.state.simulation, enabled: true, machineCount: fleet.filter((item) => item.source === "demo").length },
+        simulation: { ...this.state.simulation, enabled: true, machineCount: SYNTHETIC_MACHINE_COUNT },
         totals: {
           messages: this.state.totals.messages + 1,
           reviews: this.state.totals.reviews + (inference.humanReview ? 1 : 0),

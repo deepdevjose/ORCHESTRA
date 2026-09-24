@@ -2,7 +2,7 @@
 
 I use this guide to run the Mosquitto, Next.js, model-bridge, and ESP32
 demonstrator on Windows. Robot 1 can publish MQTT telemetry from the ESP32;
-robots 2–10 remain deterministic synthetic streams in the gateway.
+robots 2–6 remain deterministic synthetic streams in the gateway.
 
 ## Daily startup
 
@@ -34,7 +34,7 @@ npm run dev:stack
 ```
 
 8. Open `http://localhost:3000`. Robot 1 should appear as `MQTT` after the
-   first telemetry packet; robots 2–10 appear as `SIM`.
+   first telemetry packet; robots 2–6 appear as `SIM`.
 
 ## Requirements
 
