@@ -39,7 +39,7 @@ ros2 launch mas_orchestra_digital_twin simulation_launcher.launch.py
 ```
 ## In a second terminal, activate welding sequence:
 ```bash
-ros2 run mas_orchestra_digital_twin welding_secuence 
+ros2 run mas_orchestra_digital_twin welding_cell_manager.py
 ```
 
 ## In third terminal, activate or send robots to maintenance:
@@ -49,6 +49,15 @@ ros2 topic pub --once /welding_cell/command std_msgs/msg/String "{data: mantenim
 ```bash
 ros2 topic pub --once /welding_cell/command std_msgs/msg/String "{data: activar_r1}"
 ```
+
+### Debug section:
+
+If the welding secuence executable is not found, give all permitions to the file from /mas_orchestra_digital_twin/:
+```bash
+chmod +x src/mas_orchestra_digital_twin/scripts/welding_cell_manager.py
+``
+
+
 
 
 https://github.com/user-attachments/assets/528ee45a-0e9b-41e0-8419-a46de16cf53f
