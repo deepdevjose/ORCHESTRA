@@ -12,13 +12,14 @@ class WeldingCellManager(Node):
     def __init__(self):
         super().__init__('welding_cell_manager')
 
-        # Orden físico de las estaciones.
-        # Las piezas avanzan en esta dirección:
-        # r6 -> r3 -> r5 -> r2 -> r4 -> r1
+        self.trajectory_pub = self.create_publisher(JointTrajectory, '/arm_controller/joint_trajectory', 10) # Moves each robot
+        
+        self.command_sub = self.create_subscription(String, '/welding_cell/command',self.command_callback,10) # Receives commands
+
+        self.line_timer = self.create_timer(self.cycle_time,self.advance_line)
+
         self.station_order = ['r6', 'r3', 'r5', 'r2', 'r4', 'r1']
-
         self.robots = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6']
-
         self.joints_per_robot = [
             'joint_NAUO2',
             'joint_NAUO4',
@@ -27,10 +28,6 @@ class WeldingCellManager(Node):
             'joint_NAUO6',
             'joint_NAUO7'
         ]
-
-        # ---------------------------------------------------------
-        # POSICIONES
-        # ---------------------------------------------------------
 
         # r1-r3
         self.HOME_R1_R3 = [3.8, 0.8, -1.5, 0.0, 0.0, 0.0]
@@ -44,160 +41,65 @@ class WeldingCellManager(Node):
         self.WELDING_UP_R4_R6 = [-1.6, 0.0, 0.0, 1.0, 1.0, 0.0]
         self.WELDING_DOWN_R4_R6 = [-1.6, -0.5, -0.3, 0.0, -1.0, 0.0]
 
-        # ---------------------------------------------------------
-        # CONFIGURACIÓN DE LA LÍNEA
-        # ---------------------------------------------------------
+      
+        self.cycle_time = 8.0 # For one object to advance to the next station
 
-        # Una pieza aparece cada 2 ciclos:
-        # ciclo 1 -> pieza
-        # ciclo 2 -> no pieza
-        # ciclo 3 -> pieza
-        # ciclo 4 -> no pieza
-        # ...
-        #
-        # Cada ciclo representa el tiempo que tarda una pieza
-        # en avanzar de una estación a la siguiente.
-        self.cycle_time = 8.0
-
-        # Tiempo que cada robot permanece soldando.
         self.welding_time = 6.0
 
-        # Tiempo de movimiento de una trayectoria.
-        self.motion_time = 1.0
+        self.motion_time = 1.0 # For each trajectory
 
-        # Contador de ciclos de la línea.
         self.cycle_number = 0
 
-        # ID de la siguiente pieza.
         self.next_piece_id = 1
 
-        # Diccionario:
-        # pieza_id -> estación
-        #
-        # Ejemplo:
-        # {1: 2, 2: 1}
-        #
-        # significa:
-        # pieza 1 está en r5
-        # pieza 2 está en r3
         self.pieces = {}
 
-        # Estado actual de cada robot.
-        self.states = {
+        self.states = { # Robot's actual state
             robot: 'idle'
             for robot in self.robots
         }
 
-        # Pieza que está siendo soldada por cada robot.
-        self.robot_piece = {
+        self.robot_piece = { # Robot's object for welding
             robot: None
             for robot in self.robots
         }
 
-        # Mantenimiento.
-        self.maintenance = {
+        self.maintenance = { # Maintenance structure
             robot: False
             for robot in self.robots
         }
 
-        # Alternancia de soldadura UP/DOWN por pieza.
-        self.piece_welding_mode = {}
+        self.piece_welding_mode = {} # Up/Down
 
-        # Timer de soldadura por robot.
         self.welding_timers = {}
+        
+        self.get_logger().info('===============================')
+        self.get_logger().info(' Welding Cell Manager initiated')
+        self.get_logger().info('===============================')
 
-        # ---------------------------------------------------------
-        # ROS
-        # ---------------------------------------------------------
+        self.publish_all_states() # Start in IDLE pose
 
-        self.trajectory_pub = self.create_publisher(
-            JointTrajectory,
-            '/arm_controller/joint_trajectory',
-            10
-        )
-
-        self.command_sub = self.create_subscription(
-            String,
-            '/welding_cell/command',
-            self.command_callback,
-            10
-        )
-
-        # Timer principal de la línea.
-        self.line_timer = self.create_timer(
-            self.cycle_time,
-            self.advance_line
-        )
-
-        self.get_logger().info('==========================================')
-        self.get_logger().info(' Welding Cell Manager iniciado')
-        self.get_logger().info(' PIPELINE DE PRODUCCIÓN')
-        self.get_logger().info(' Estaciones: r6 -> r3 -> r5 -> r2 -> r4 -> r1')
-        self.get_logger().info(' Una pieza cada 2 ciclos')
-        self.get_logger().info(' 5 segundos por ciclo')
-        self.get_logger().info(' 2 segundos de soldadura')
-        self.get_logger().info('==========================================')
-
-        # Todos comienzan en IDLE.
-        self.publish_all_states()
-
-        # Primera pieza inmediatamente.
-        self.spawn_piece()
-
-    # =============================================================
-    # LÓGICA DE LA LÍNEA
-    # =============================================================
+        self.spawn_piece() # Creates first piece
 
     def advance_line(self):
-        """
-        Avanza todas las piezas una estación.
-
-        Ejemplo:
-
-        Ciclo 1:
-            pieza A -> r6
-
-        Ciclo 2:
-            pieza A -> r3
-
-        Ciclo 3:
-            pieza A -> r5
-            pieza B -> r6
-
-        Ciclo 4:
-            pieza A -> r2
-            pieza B -> r3
-
-        etc.
-        """
 
         self.cycle_number += 1
 
-        self.get_logger().info(
-            f'========== CICLO {self.cycle_number} =========='
-        )
+        self.get_logger().info(f'========== CYCLE {self.cycle_number} ==========')
 
-        # ---------------------------------------------------------
-        # 1. Mover las piezas existentes a la siguiente estación.
-        # ---------------------------------------------------------
-
-        # Se procesa primero la última estación para evitar
-        # conflictos al actualizar las posiciones.
         pieces_to_move = list(self.pieces.items())
 
-        # Las piezas avanzan simultáneamente.
         new_positions = {}
 
         for piece_id, station_index in pieces_to_move:
 
             next_station = station_index + 1
 
-            # La pieza salió de la línea.
-            if next_station >= len(self.station_order):
+            if next_station >= len(self.station_order): # Piece has reached the end 
 
                 current_robot = self.station_order[station_index]
 
-                if self.robot_piece[current_robot] == piece_id:
+                if self.robot_piece[current_robot] == piece_id: # Cleans piece ID
                     self.robot_piece[current_robot] = None
 
                 self.get_logger().info(
@@ -210,134 +112,85 @@ class WeldingCellManager(Node):
 
         self.pieces = new_positions
 
-        # ---------------------------------------------------------
-        # 2. Crear una nueva pieza cada 2 ciclos.
-        # ---------------------------------------------------------
 
-        if self.cycle_number % 2 == 1:
+        if self.cycle_number % 2 == 1: # Every 2 cycles a new piece is created
             self.spawn_piece()
 
-        # ---------------------------------------------------------
-        # 3. Actualizar qué pieza tiene cada robot.
-        # ---------------------------------------------------------
-
         self.update_robot_assignments()
-
-        # ---------------------------------------------------------
-        # 4. Publicar posiciones.
-        # ---------------------------------------------------------
 
         self.publish_all_states()
 
         self.print_line_status()
 
     def spawn_piece(self):
-        """
-        Inserta una pieza nueva en r6.
-        """
 
         piece_id = self.next_piece_id
         self.next_piece_id += 1
 
         self.pieces[piece_id] = 0
 
-        # Alternar UP/DOWN entre piezas.
-        if piece_id % 2 == 1:
+        if piece_id % 2 == 1: # UP/DOWN one & one
             self.piece_welding_mode[piece_id] = 'welding_up'
         else:
             self.piece_welding_mode[piece_id] = 'welding_down'
 
         self.get_logger().info(
-            f'>>> Nueva pieza {piece_id} entra a la línea en r6 '
+            f'>>> One Piece {piece_id} enters production line on r6 ' # Gear 5???
             f'({self.piece_welding_mode[piece_id]})'
         )
 
     def update_robot_assignments(self):
-        """
-        Determina qué robot tiene qué pieza.
 
-        Un robot solamente trabaja si hay una pieza en su estación.
-        Los demás permanecen en IDLE.
-        """
-
-        # Limpiar asignaciones.
         for robot in self.robots:
             self.robot_piece[robot] = None
 
-        # Asignar piezas a robots.
         for piece_id, station_index in self.pieces.items():
 
             robot = self.station_order[station_index]
 
-            # Si el robot está en mantenimiento, la pieza no puede
-            # ser procesada por él.
             if self.maintenance[robot]:
                 self.get_logger().warn(
-                    f'Pieza {piece_id} llegó a {robot}, '
-                    f'pero está en mantenimiento.'
+                    f'Piece {piece_id} arrived to {robot}, '
+                    f'but it is on maintenance'
                 )
-                continue
+                continue # If robot is maintenance, it cannot weld any piece
 
             self.robot_piece[robot] = piece_id
 
-        # Actualizar estados.
         for robot in self.robots:
 
-            if self.maintenance[robot]:
+            if self.maintenance[robot]: # Returns home pose por maintenance
                 self.states[robot] = 'home'
                 continue
 
             piece_id = self.robot_piece[robot]
 
             if piece_id is None:
-                self.states[robot] = 'idle'
+                self.states[robot] = 'idle' # Executes idle position if there is no piece in front
             else:
-                self.states[robot] = (
+                self.states[robot] = ( # Executes welding position
                     self.piece_welding_mode[piece_id]
                 )
 
-                self.start_welding_timer(
-                    robot,
-                    piece_id
-                )
-
-    # =============================================================
-    # SOLDADURA
-    # =============================================================
+                self.start_welding_timer(robot,piece_id)
 
     def start_welding_timer(self, robot, piece_id):
-        """
-        Programa el regreso a IDLE después de la soldadura.
 
-        El timer se reemplaza si ya existe uno para ese robot.
-        """
-
-        if robot in self.welding_timers:
+        if robot in self.welding_timers: # Creates timer
             return
 
-        timer = self.create_timer(
-            self.welding_time,
-            lambda r=robot, p=piece_id:
-                self.finish_welding(r, p)
-        )
+        timer = self.create_timer(self.welding_time, lambda r=robot, p=piece_id: self.finish_welding(r, p))
 
         self.welding_timers[robot] = timer
 
     def finish_welding(self, robot, piece_id):
-        """
-        Termina visualmente la operación de soldadura.
-
-        La pieza permanece en la estación hasta el siguiente
-        ciclo de la línea.
-        """
-
-        timer = self.welding_timers.pop(robot, None)
+   
+        timer = self.welding_timers.pop(robot, None) # Erases timer
 
         if timer is not None:
             timer.cancel()
 
-        # Si la pieza sigue siendo la misma, el robot queda IDLE.
-        if self.robot_piece[robot] == piece_id:
+        if self.robot_piece[robot] == piece_id: # If same piece:
 
             if self.maintenance[robot]:
                 self.states[robot] = 'home'
@@ -345,46 +198,31 @@ class WeldingCellManager(Node):
                 self.states[robot] = 'idle'
 
             self.get_logger().info(
-                f'{robot} terminó de soldar pieza {piece_id} -> IDLE'
+                f'{robot} finished welding piece {piece_id} -> IDLE'
             )
 
             self.publish_all_states()
 
-    # =============================================================
-    # MANTENIMIENTO
-    # =============================================================
-
-    def command_callback(self, msg):
+    def command_callback(self, msg): # Receives commands from dashboard
         command = msg.data.strip().lower()
 
-        # ---------------------------------------------------------
-        # MANTENIMIENTO
-        # ---------------------------------------------------------
 
         if command.startswith('mantenimiento_'):
 
-            robot = command.replace(
-                'mantenimiento_',
-                ''
-            )
+            robot = command.replace('mantenimiento_','')
 
             if robot not in self.robots:
-                self.get_logger().warn(
-                    f'Robot desconocido: {robot}'
-                )
+                self.get_logger().warn(f'UNK Robot: {robot}') 
                 return
 
             if self.maintenance[robot]:
-                self.get_logger().warn(
-                    f'{robot} ya está en mantenimiento.'
-                )
+                self.get_logger().warn(f'{robot} already on maintenance.')
                 return
 
             self.maintenance[robot] = True
             self.states[robot] = 'home'
 
-            # Cancelar timer de soldadura si existe.
-            timer = self.welding_timers.pop(robot, None)
+            timer = self.welding_timers.pop(robot, None) # Erases timer
 
             if timer is not None:
                 timer.cancel()
@@ -397,108 +235,70 @@ class WeldingCellManager(Node):
 
             return
 
-        # ---------------------------------------------------------
-        # ACTIVAR
-        # ---------------------------------------------------------
-
         if command.startswith('activar_'):
 
-            robot = command.replace(
-                'activar_',
-                ''
-            )
+            robot = command.replace('activar_','')
 
             if robot not in self.robots:
-                self.get_logger().warn(
-                    f'Robot desconocido: {robot}'
-                )
+                self.get_logger().warn(f'UNK Robot: {robot}')
                 return
 
             if not self.maintenance[robot]:
-                self.get_logger().warn(
-                    f'{robot} ya está activo.'
-                )
+                self.get_logger().warn(f'{robot} already active.')
                 return
 
             self.maintenance[robot] = False
             self.states[robot] = 'idle'
 
-            self.get_logger().info(
-                f'{robot} -> ACTIVADO / IDLE'
-            )
+            self.get_logger().info(f'{robot} -> ACTIVADO / IDLE')
 
-            # Si hay una pieza actualmente en su estación,
-            # el robot puede comenzar a trabajar con ella.
-            self.update_robot_assignments()
+            self.update_robot_assignments() # Resumes normal operation
 
             self.publish_all_states()
 
             return
 
-        self.get_logger().warn(
-            f'Comando no reconocido: {command}'
-        )
-
-    # =============================================================
-    # POSICIONES
-    # =============================================================
+        self.get_logger().warn(f'UNK command: {command}')
 
     def get_robot_position(self, robot):
 
         robot_number = int(robot[1:])
         state = self.states[robot]
 
-        if robot_number <= 3:
-
+        if robot_number <= 3: # Left robots
             if state == 'home':
                 return self.HOME_R1_R3
-
             elif state == 'welding_up':
                 return self.WELDING_UP_R1_R3
-
             elif state == 'welding_down':
                 return self.WELDING_DOWN_R1_R3
-
             else:
                 return self.IDLE_R1_R3
-
-        else:
-
+        else: # Right robots
             if state == 'home':
                 return self.HOME_R4_R6
-
             elif state == 'welding_up':
                 return self.WELDING_UP_R4_R6
-
             elif state == 'welding_down':
                 return self.WELDING_DOWN_R4_R6
-
             else:
                 return self.IDLE_R4_R6
 
-    # =============================================================
-    # PUBLICACIÓN DEL TRAJECTORY
-    # =============================================================
 
     def publish_all_states(self):
 
         msg = JointTrajectory()
 
-        # Todos los robots se envían siempre al mismo controller.
-        for robot in self.robots:
+        for robot in self.robots: # Same controller 
 
             for joint in self.joints_per_robot:
-                msg.joint_names.append(
-                    f'{robot}/{joint}'
-                )
+                msg.joint_names.append(f'{robot}/{joint}')
 
         point = JointTrajectoryPoint()
 
         for robot in self.robots:
 
-            point.positions.extend(
-                self.get_robot_position(robot)
-            )
+            point.positions.extend(self.get_robot_position(robot))
 
         point.time_from_start.sec = int(
             self.motion_time
@@ -510,60 +310,32 @@ class WeldingCellManager(Node):
 
         msg.points.append(point)
 
-        self.trajectory_pub.publish(msg)
-
-    # =============================================================
-    # INFORMACIÓN DE LA LÍNEA
-    # =============================================================
+        self.trajectory_pub.publish(msg) # Publishes trajectories
 
     def print_line_status(self):
 
         status = []
-
         for robot in self.station_order:
-
             piece_id = self.robot_piece[robot]
-
             if self.maintenance[robot]:
-
-                status.append(
-                    f'{robot}: MAINTENANCE'
-                )
-
+                status.append(f'{robot}: MAINTENANCE')
             elif piece_id is None:
-
-                status.append(
-                    f'{robot}: IDLE'
-                )
-
+                status.append(f'{robot}: IDLE')
             else:
-
-                status.append(
-                    f'{robot}: PIEZA {piece_id} '
-                    f'{self.states[robot].upper()}'
-                )
-
-        self.get_logger().info(
-            ' | '.join(status)
-        )
+                status.append(f'{robot}: PIEZA {piece_id} 'f'{self.states[robot].upper()}')
+        self.get_logger().info(' | '.join(status))
 
 
 def main(args=None):
-
     rclpy.init(args=args)
-
     node = WeldingCellManager()
-
     try:
         rclpy.spin(node)
-
     except KeyboardInterrupt:
         pass
-
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
 
 if __name__ == '__main__':
     main()
